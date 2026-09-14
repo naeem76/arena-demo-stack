@@ -1,9 +1,11 @@
 package com.arena.backend.api.diagnostics;
 
+import com.arena.backend.security.ApiScopes;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -29,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class DiagnosticsController {
 
 	@GetMapping("/errors/{status}")
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
 	@Operation(summary = "Exercise an HTTP error status from 400 through 599")
 	@ApiResponse(responseCode = "default", description = "Requested error, or 400 for invalid input",
 			content = @Content(mediaType = "application/problem+json",
@@ -38,6 +41,7 @@ public class DiagnosticsController {
 	}
 
 	@GetMapping("/errors/unexpected")
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
 	@Operation(summary = "Trigger an unexpected exception to verify logging and error masking")
 	@ApiResponse(responseCode = "500", description = "Masked internal server error",
 			content = @Content(mediaType = "application/problem+json",
@@ -47,6 +51,7 @@ public class DiagnosticsController {
 	}
 
 	@PostMapping("/validation")
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
 	@Operation(summary = "Validate a sample request; echo valid input")
 	public ValidationRequest validate(@Valid @RequestBody ValidationRequest request) {
 		return request;

@@ -20,6 +20,7 @@ docker compose up --build --wait
 - Backend health: <http://localhost:8080/actuator/health>
 - Interactive API reference (Scalar): <http://localhost:8080/scalar>
 - OpenAPI document: <http://localhost:8080/v3/api-docs>
+- Local demo sign-in for Scalar: `demo` / `arena-demo`
 - PostgreSQL: `localhost:5432`, database `arena`
 - Local development database credentials: `arena` / `arena_local`
 
@@ -65,13 +66,14 @@ Build and verify from `backend/` with Docker running:
 ./mvnw verify
 ```
 
-Tests cover API errors, validation, CORS, documentation, and application startup
+Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
+and PKCE exchanges, JWT validation, scope enforcement, and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.
 
-See [backend API foundation](backend/README.md) for error conventions, CORS
-configuration, and the opt-in diagnostic controller used for manual testing.
+See [backend API foundation](backend/README.md) for Scalar sign-in instructions,
+error conventions, CORS configuration, and the opt-in diagnostic controller.
 
 This initial scaffold has no domain endpoints yet. Flyway is
 configured through Spring Boot auto-configuration; versioned migrations will be

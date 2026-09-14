@@ -2,6 +2,8 @@ package com.arena.backend.api;
 
 import com.arena.backend.api.diagnostics.DiagnosticsController;
 import com.arena.backend.configuration.WebConfiguration;
+import com.arena.backend.configuration.SecurityConfiguration;
+import com.arena.backend.security.SecurityProblemHandler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,7 +15,10 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,9 +34,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = DiagnosticsController.class, properties =
 		"app.cors.allowed-origins=http://localhost:4200,http://client.example")
-@Import({ApiExceptionHandler.class, WebConfiguration.class})
+@Import({ApiExceptionHandler.class, WebConfiguration.class, SecurityConfiguration.class, SecurityProblemHandler.class})
 @ActiveProfiles("diagnostics")
+@WithMockUser(authorities = {"SCOPE_api.read", "SCOPE_api.write"})
 class ApiFoundationWebTests {
+
+	@MockitoBean
+	private JwtDecoder jwtDecoder;
 
 	@Autowired
 	private MockMvc mvc;
