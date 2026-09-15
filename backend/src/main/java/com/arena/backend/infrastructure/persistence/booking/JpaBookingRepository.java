@@ -13,11 +13,35 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaBookingRepository extends JpaRepository<Booking, UUID> {
 
-	@EntityGraph(attributePaths = "event")
+	@Override
+	@EntityGraph(attributePaths = {"event", "user"})
+	Optional<Booking> findById(UUID id);
+
+	@EntityGraph(attributePaths = {"event", "user"})
 	Optional<Booking> findByIdAndUser_Id(UUID id, UUID userId);
 
-	@EntityGraph(attributePaths = "event")
-	List<Booking> findAllByUser_IdOrderByCreatedAtDescIdDesc(UUID userId);
+	@EntityGraph(attributePaths = {"event", "user"})
+	@Query("""
+			SELECT booking FROM Booking booking
+			WHERE booking.user.id = :userId
+			AND (:eventId IS NULL OR booking.event.id = :eventId)
+			AND (:status IS NULL OR booking.status = :status)
+			ORDER BY booking.createdAt DESC, booking.id DESC
+			""")
+	List<Booking> findOwned(@Param("userId") UUID userId, @Param("eventId") UUID eventId,
+			@Param("status") BookingStatus status);
+
+	@EntityGraph(attributePaths = {"event", "user"})
+	@Query("""
+			SELECT booking FROM Booking booking
+			WHERE (:eventId IS NULL OR booking.event.id = :eventId)
+			AND (:status IS NULL OR booking.status = :status)
+			ORDER BY booking.createdAt DESC, booking.id DESC
+			""")
+	List<Booking> findFiltered(@Param("eventId") UUID eventId, @Param("status") BookingStatus status);
+
+	@Query("SELECT booking.event.id FROM Booking booking WHERE booking.id = :id")
+	Optional<UUID> findEventIdById(@Param("id") UUID id);
 
 	@Query("SELECT booking.event.id FROM Booking booking WHERE booking.id = :id AND booking.user.id = :userId")
 	Optional<UUID> findEventIdByIdAndUserId(@Param("id") UUID id, @Param("userId") UUID userId);

@@ -31,7 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class DiagnosticsController {
 
 	@GetMapping("/errors/{status}")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	@Operation(summary = "Exercise an HTTP error status from 400 through 599")
 	@ApiResponse(responseCode = "default", description = "Requested error, or 400 for invalid input",
 			content = @Content(mediaType = "application/problem+json",
@@ -41,7 +41,7 @@ public class DiagnosticsController {
 	}
 
 	@GetMapping("/errors/unexpected")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	@Operation(summary = "Trigger an unexpected exception to verify logging and error masking")
 	@ApiResponse(responseCode = "500", description = "Masked internal server error",
 			content = @Content(mediaType = "application/problem+json",
@@ -51,7 +51,7 @@ public class DiagnosticsController {
 	}
 
 	@PostMapping("/validation")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	@Operation(summary = "Validate a sample request; echo valid input")
 	public ValidationRequest validate(@Valid @RequestBody ValidationRequest request) {
 		return request;

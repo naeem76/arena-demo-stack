@@ -4,8 +4,8 @@ This repository contains the Arena full-stack developer assessment. The project
 will include a Spring Boot backend, an Angular web application, and a Flutter
 mobile application.
 
-The backend Event CRUD API, owner-scoped bookings, and database-backed login are
-implemented. This README will be updated as the implementation progresses.
+The backend Event CRUD API, user/admin booking management, and database-backed
+OAuth2/OIDC login are implemented. This README will be updated as implementation progresses.
 
 ## Run locally
 
@@ -21,7 +21,8 @@ docker compose up --build --wait
 - Interactive API reference (Scalar): <http://localhost:8080/scalar>
 - OpenAPI document: <http://localhost:8080/v3/api-docs>
 - OpenID Connect discovery: <http://localhost:8080/.well-known/openid-configuration>
-- Local demo sign-in for Scalar: `demo` / `arena-demo`
+- Local admin sign-in for Scalar: `admin` / `arena-admin` (Event CRUD and all bookings)
+- Local user sign-in for Scalar: `demo` / `arena-demo` (browse events and manage own bookings)
 - PostgreSQL: `localhost:5432`, database `arena`
 - Local development database credentials: `arena` / `arena_local`
 
@@ -69,8 +70,9 @@ Build and verify from `backend/` with Docker running:
 
 Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
 and PKCE exchanges, OIDC discovery/ID tokens/UserInfo, JWT validation, scope
-enforcement, password storage, account login, Event CRUD, booking ownership/history,
-concurrent capacity enforcement, persistence and schema constraints, and application startup
+and role enforcement, password storage, account login, Event CRUD,
+booking ownership/history, concurrent capacity enforcement, persistence and
+schema constraints, and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.

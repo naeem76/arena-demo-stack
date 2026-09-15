@@ -7,11 +7,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -45,6 +48,11 @@ public class User {
 	@Column(nullable = false)
 	private boolean enabled = true;
 
+	@NotNull
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private UserRole role = UserRole.USER;
+
 	@CreatedDate
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -57,9 +65,14 @@ public class User {
 	}
 
 	public User(String username, String displayName, String passwordHash) {
+		this(username, displayName, passwordHash, UserRole.USER);
+	}
+
+	public User(String username, String displayName, String passwordHash, UserRole role) {
 		this.username = username;
 		this.displayName = displayName;
 		this.passwordHash = passwordHash;
+		this.role = role;
 	}
 
 	public UUID getId() {
@@ -81,6 +94,10 @@ public class User {
 	@JsonIgnore
 	public String getPasswordHash() {
 		return passwordHash;
+	}
+
+	public UserRole getRole() {
+		return role;
 	}
 
 	public boolean isEnabled() {

@@ -6,7 +6,7 @@ See the [root README](../README.md) for build and startup instructions.
 
 - `api/`: HTTP controllers and centralized exception handling.
 - `api/event/`: Event request/response DTOs, mapping, and CRUD controller.
-- `api/booking/`: owner-scoped reservation endpoints and DTOs.
+- `api/booking/`: shared user/admin reservation endpoints and DTOs.
 - `application/event/`: transactional Event use cases and time-dependent creation validation.
 - `application/booking/`: transactional reservation, ownership, and capacity checks.
 - `domain/event/`: the Event model, status enum, and repository contract.
@@ -26,8 +26,9 @@ Problem Details responses.
 
 ## Event API
 
-All endpoints require a bearer token. GET requests use `api.read`; mutations use
-`api.write`.
+All endpoints require a bearer token with `api.access` and a `USER` or `ADMIN`
+role. Both roles can read events; creating, editing, changing status and deleting
+events additionally require `ADMIN`.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -80,15 +81,35 @@ event row used by reservation transactions.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/bookings` | List the signed-in user's complete booking history, newest first |
-| GET | `/api/bookings/{id}` | Read an owned booking |
+| GET | `/api/bookings` | List personal booking history by default; admins can request `scope=all` |
+| GET | `/api/bookings/{id}` | Read a booking as its owner or an admin |
 | POST | `/api/bookings` | Reserve one place; returns `201` and `Location` |
-| POST | `/api/bookings/{id}/cancel` | Cancel an owned booking; returns `200` |
+| POST | `/api/bookings/{id}/cancel` | Cancel as the owner or an admin; returns `200` |
 
 Creation accepts `{"eventId":"<event-uuid>"}`. The owner is taken from the JWT
-subject; no user ID or status is accepted as an input field. Reads require
-`api.read` and mutations require `api.write`. Missing bookings and bookings owned
-by another user both return `404`.
+subject, including for admins; no user ID or status is accepted as an input field.
+All operations require `api.access` and a recognized role. Ordinary users receive
+`404` for both missing bookings and bookings owned by someone else.
+
+Listing defaults to `scope=mine` for **both** roles. Only admins may request
+`scope=all`; a regular user receives `403`. Both modes accept optional `eventId`
+and `status=CONFIRMED|CANCELLED` filters and return newest first, with ID as a
+tie-breaker. For example:
+
+```text
+GET /api/bookings?scope=all&eventId=<event-uuid>&status=CONFIRMED
+```
+
+Lists currently return all matching records without pagination, consistent with
+the assessment's small dataset. Responses include a `participant` summary with
+only the user's `id` and `displayName`, alongside the existing Event and booking
+fields. No user entity, password hash or account role is serialized.
+
+The service uses the verified caller's authorities to choose an unrestricted
+primary-key lookup for admins or an owner-scoped lookup for users. Admin access
+does not bypass lifecycle, capacity or history rules, and does not transfer
+booking ownership. Roles or owner IDs supplied as request parameters do not
+grant access.
 
 ### Reservation rules and availability
 
@@ -98,8 +119,8 @@ by another user both return `404`.
   `event.capacity - confirmed booking count`; there is no separate stored counter.
 - A user can have only one `CONFIRMED` booking per event. Duplicate active
   reservations and full events return `409`.
-- Cancellation is allowed before the scheduled start time unless the event has
-  already become `LIVE` or `COMPLETED`. Repeated cancellation succeeds without
+- Cancellation, including by admins, is allowed before the scheduled start time
+  unless the event has already become `LIVE` or `COMPLETED`. Repeated cancellation succeeds without
   creating another row or changing the original cancellation result.
 - Rebooking always creates a **new row and UUID**. The previous cancelled row
   remains in history and does not consume capacity.
@@ -117,7 +138,8 @@ Creation and cancellation acquire a Spring Data JPA `PESSIMISTIC_WRITE` lock on
 the event row before checking current state and capacity. Event mutations follow
 the same lock order, keeping capacity reductions, status changes, and deletion
 consistent with concurrent reservations. Cancellation initially reads only the
-owned booking's event ID, then reloads the booking after obtaining the lock.
+authorized booking's event ID, then reloads the booking after obtaining the lock.
+Owner/admin simultaneous cancellations use the same transaction path.
 
 Tests use concurrent transactions against PostgreSQL to exercise last-place
 reservations, duplicate requests, capacity reductions, and repeated cancellations.
@@ -158,9 +180,14 @@ entity's lifecycle rules and the service's time-dependent creation rules.
 ## User persistence
 
 `User` stores a UUID, username (up to 50 characters), display name (up to 100
-characters), password hash, enabled flag, and audit timestamps. Usernames are
+characters), password hash, role, enabled flag, and audit timestamps. Usernames are
 unique and looked up case-insensitively. The schema is defined in
 [V2__create_users.sql](src/main/resources/db/migration/V2__create_users.sql).
+
+[V4__add_user_roles.sql](src/main/resources/db/migration/V4__add_user_roles.sql)
+adds a non-null `USER`/`ADMIN` role with a database check constraint. Existing
+accounts default to `USER`; roles are server-managed, with no public role-update
+endpoint. The separately seeded admin account receives `ADMIN` when first created.
 
 Spring's `UserDetailsService` loads accounts through `UserRepository` and returns
 the framework's standard `UserDetails`. Password hashing and verification use
@@ -211,7 +238,7 @@ The `scalar` client is public and requires authorization code + PKCE (SHA-256).
 It has no client secret. Access tokens last 15 minutes; refresh tokens and the
 password/client-credentials grants are not configured.
 
-Request `openid` alongside the API scopes to receive an ID token. Add `profile`
+Request `openid` alongside `api.access` to receive an ID token. Add `profile`
 to include the user's display name in the standard `name` claim. Both access and
 ID tokens use the persisted user UUID as `sub`; ID tokens also identify the
 client in `aud` and return the authorization request's `nonce` when supplied.
@@ -223,10 +250,19 @@ time. Credentials and password hashes are never included. OAuth-only requests
 without `openid` continue to work and do not receive an ID token or UserInfo access.
 The Angular client and its callback will be registered when the SPA is configured.
 
-- GET and HEAD requests under `/api/**` require `api.read`.
-- Mutating requests require `api.write`.
-- Missing or invalid bearer tokens produce `401`; insufficient scope produces `403`.
+- Every request under `/api/**` requires `api.access` and a `USER` or `ADMIN` role.
+- Event mutations additionally require `ADMIN`; booking access is owner-or-admin.
+- Access-token `roles` claims come from the persisted account and are mapped by
+  Spring's JWT converters to `ROLE_USER` or `ROLE_ADMIN`, alongside scope authorities.
+  ID tokens do not carry API roles and cannot authorize API requests.
+- Missing or invalid bearer tokens produce `401`; missing scope or role produces `403`.
 - Documentation and health endpoints remain public.
+
+One API scope keeps the assessment's permission model simple. Roles and ownership
+determine permitted operations; separate read-only client delegation is not
+provided. The former `api.read` and `api.write` scopes are no longer registered.
+Account role changes affect newly issued tokens; existing tokens retain their
+claims until expiry or backend restart.
 
 The API uses a stateless security chain. Browser login sessions are used for the
 authorization flow, but do not authenticate API requests. CSRF protection remains
@@ -238,9 +274,10 @@ JWT validation checks the signature, issuer, and token lifetime.
 1. Enable the diagnostic endpoints using the command in **Manual error testing** below.
 2. Open `/scalar` on the configured issuer origin.
 3. In **Authentication**, keep `arenaOAuth`, client ID `scalar`, PKCE `SHA-256`,
-   and the selected `api.read` / `api.write` scopes. Leave **Client Secret** empty.
-4. Click **Authorize**. In the popup, sign in with username `demo` and password
-   `arena-demo`.
+   and the selected `api.access` scope. Leave **Client Secret** empty.
+4. Click **Authorize**. In Scalar's popup, sign in as `admin` / `arena-admin` for
+   Event management and cross-user bookings, or `demo` / `arena-demo` for normal
+   user access.
 5. Scalar exchanges the authorization code and attaches the access token to
    requests made with **Test Request**.
 
@@ -248,8 +285,10 @@ Optionally select `openid` and `profile` as well to exercise OIDC token issuance
 Discovery and UserInfo are framework protocol endpoints rather than CRUD routes
 in the OpenAPI document.
 
-To exercise a real authorization failure, obtain a token with only `api.read`
-selected and send a POST to the validation endpoint; it returns `403`.
+To exercise a real authorization failure, sign in as `demo` with `api.access`
+and try creating an event or listing `/api/bookings?scope=all`; both return `403`.
+When switching accounts in Scalar, sign out of the Spring browser session first
+using `/logout`, then authorize again with the other account.
 
 ### Local configuration and lifecycle
 
@@ -259,11 +298,15 @@ selected and send a POST to the validation endpoint; it returns `403`.
 callback is `${AUTH_ISSUER_URI}/scalar`.
 
 For a local Java process on a different port, set `AUTH_ISSUER_URI` to the matching
-external URL. On first startup, `DEMO_USERNAME` and `DEMO_PASSWORD` supply the demo
-account credentials. The initializer creates that account only if its username
-is absent; it never overwrites an existing password, profile, or enabled flag.
+external URL. On first startup, `DEMO_USERNAME` / `DEMO_PASSWORD` supply the normal
+demo account credentials; `DEMO_ADMIN_USERNAME` / `DEMO_ADMIN_PASSWORD` supply the
+admin credentials. Defaults are `demo` / `arena-demo` and `admin` / `arena-admin`.
+The initializer creates each account only if its username is absent; it never
+overwrites an existing password, profile, enabled flag or role. Use distinct
+usernames for the two accounts.
 Changing these environment variables does not reset an existing account.
-Set `SEED_DEMO_USER=false` to disable initialization (`app.security.seed-demo-user`).
+Set `SEED_DEMO_USER=false` to disable both demo accounts' initialization
+(`app.security.seed-demo-user`).
 
 User accounts and password hashes persist in PostgreSQL. OAuth client registration
 and authorization state remain in memory, and a new RSA signing key is generated

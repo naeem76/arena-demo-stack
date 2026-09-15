@@ -202,13 +202,25 @@ class EventApiIntegrationTests {
 	}
 
 	@Test
-	void enforcesReadAndWriteScopes() throws Exception {
+	void enforcesAccessScopeAndEventRoles() throws Exception {
+		String id = create("Football");
+		var userAccess = jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.access"),
+				new SimpleGrantedAuthority("ROLE_USER"));
 		mvc.perform(get("/api/events")).andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/events").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.read"))))
-				.andExpect(status().isOk());
-		mvc.perform(post("/api/events").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.read")))
+		mvc.perform(get("/api/events").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.access"))))
+				.andExpect(status().isForbidden());
+		mvc.perform(get("/api/events").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+				.andExpect(status().isForbidden());
+		mvc.perform(get("/api/events").with(userAccess)).andExpect(status().isOk());
+		mvc.perform(get("/api/events/{id}", id).with(userAccess)).andExpect(status().isOk());
+		mvc.perform(post("/api/events").with(userAccess)
 				.contentType(MediaType.APPLICATION_JSON).content(request("Football").toString()))
 				.andExpect(status().isForbidden());
+		mvc.perform(put("/api/events/{id}", id).with(userAccess)
+				.contentType(MediaType.APPLICATION_JSON).content(request("Updated football").toString()))
+				.andExpect(status().isForbidden());
+		mvc.perform(statusRequest(id, "LIVE").with(userAccess)).andExpect(status().isForbidden());
+		mvc.perform(delete("/api/events/{id}", id).with(userAccess)).andExpect(status().isForbidden());
 	}
 
 	@Test
@@ -239,6 +251,6 @@ class EventApiIntegrationTests {
 	}
 
 	private JwtRequestPostProcessor access() {
-		return jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.read"), new SimpleGrantedAuthority("SCOPE_api.write"));
+		return jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.access"), new SimpleGrantedAuthority("ROLE_ADMIN"));
 	}
 }

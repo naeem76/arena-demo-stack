@@ -10,6 +10,7 @@ final class BookingMapper {
 
 	static BookingResponse toResponse(Booking booking) {
 		return new BookingResponse(booking.getId(), EventMapper.toResponse(booking.getEvent()),
-				booking.getStatus(), booking.getCreatedAt(), booking.getUpdatedAt());
+				booking.getStatus(), booking.getCreatedAt(), booking.getUpdatedAt(),
+				new BookingResponse.Participant(booking.getUser().getId(), booking.getUser().getDisplayName()));
 	}
 }

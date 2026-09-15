@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 		"app.cors.allowed-origins=http://localhost:4200,http://client.example")
 @Import({ApiExceptionHandler.class, WebConfiguration.class, SecurityConfiguration.class, SecurityProblemHandler.class})
 @ActiveProfiles("diagnostics")
-@WithMockUser(authorities = {"SCOPE_api.read", "SCOPE_api.write"})
+@WithMockUser(authorities = {"SCOPE_api.access", "ROLE_USER"})
 class ApiFoundationWebTests {
 
 	@MockitoBean

@@ -10,11 +10,14 @@ public record SecurityProperties(
 		@NotBlank String issuer,
 		@NotBlank String clientId,
 		@NotBlank String demoUsername,
-		@NotBlank String demoPassword) {
+		@NotBlank String demoPassword,
+		@NotBlank String demoAdminUsername,
+		@NotBlank String demoAdminPassword) {
 
 	@Override
 	public String toString() {
 		return "SecurityProperties[issuer=" + issuer + ", clientId=" + clientId
-				+ ", demoUsername=" + demoUsername + ", demoPassword=[REDACTED]]";
+				+ ", demoUsername=" + demoUsername + ", demoPassword=[REDACTED]"
+				+ ", demoAdminUsername=" + demoAdminUsername + ", demoAdminPassword=[REDACTED]]";
 	}
 }

@@ -4,9 +4,11 @@ import com.arena.backend.PostgresTestConfiguration;
 import com.arena.backend.configuration.JpaAuditingConfiguration;
 import com.arena.backend.domain.user.User;
 import com.arena.backend.domain.user.UserRepository;
+import com.arena.backend.domain.user.UserRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -44,6 +46,7 @@ class UserRepositoryIntegrationTests {
 		assertThat(saved.getDisplayName()).isEqualTo("Alex Smith");
 		assertThat(saved.getPasswordHash()).isEqualTo(PASSWORD_HASH);
 		assertThat(saved.isEnabled()).isTrue();
+		assertThat(saved.getRole()).isEqualTo(UserRole.USER);
 		assertThat(saved.getCreatedAt()).isNotNull();
 		assertThat(saved.getUpdatedAt()).isEqualTo(saved.getCreatedAt());
 		assertThat(repository.findByUsername("aLeX")).get().extracting(User::getId).isEqualTo(saved.getId());
@@ -81,6 +84,23 @@ class UserRepositoryIntegrationTests {
 
 		assertThatThrownBy(() -> jdbc.update("UPDATE users SET password_hash = ? WHERE id = ?",
 				"plaintext-password", user.getId())).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void persistsExplicitAdminRole() {
+		User admin = saveAndReload(new User("manager", "Manager", PASSWORD_HASH, UserRole.ADMIN));
+		assertThat(admin.getRole()).isEqualTo(UserRole.ADMIN);
+		assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, admin.getId()))
+				.isEqualTo("ADMIN");
+	}
+
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"SUPERUSER", "admin"})
+	void databaseRejectsMissingOrUnknownRoles(String role) {
+		User user = saveAndReload(new User("Alex", "Alex Smith", PASSWORD_HASH));
+		assertThatThrownBy(() -> jdbc.update("UPDATE users SET role = ? WHERE id = ?", role, user.getId()))
+				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	private User saveAndReload(User user) {

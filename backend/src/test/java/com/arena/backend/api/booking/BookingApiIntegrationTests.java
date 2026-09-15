@@ -72,12 +72,14 @@ class BookingApiIntegrationTests {
 
 	private UUID ownerId;
 	private UUID otherId;
+	private UUID adminId;
 
 	@BeforeEach
 	void setUp() {
 		when(clock.instant()).thenReturn(NOW);
 		User owner = users.findByUsername("demo").orElseThrow();
 		ownerId = owner.getId();
+		adminId = users.findByUsername("admin").orElseThrow().getId();
 		otherId = users.save(new User("booking-test-" + UUID.randomUUID(), "Other user", owner.getPasswordHash())).getId();
 	}
 
@@ -135,9 +137,9 @@ class BookingApiIntegrationTests {
 	void bookingHistoryPreventsEventDeletion() throws Exception {
 		UUID eventId = event(1);
 		String id = book(eventId, ownerId);
-		mvc.perform(delete("/api/events/{id}", eventId).with(access(ownerId))).andExpect(status().isConflict());
+		mvc.perform(delete("/api/events/{id}", eventId).with(adminAccess())).andExpect(status().isConflict());
 		mvc.perform(post("/api/bookings/{id}/cancel", id).with(access(ownerId))).andExpect(status().isOk());
-		mvc.perform(delete("/api/events/{id}", eventId).with(access(ownerId))).andExpect(status().isConflict());
+		mvc.perform(delete("/api/events/{id}", eventId).with(adminAccess())).andExpect(status().isConflict());
 		mvc.perform(get("/api/events/{id}", eventId).with(access(ownerId))).andExpect(status().isOk());
 	}
 
@@ -156,7 +158,7 @@ class BookingApiIntegrationTests {
 	void cancelledEventRemainsVisibleInBookingHistoryAndCannotBeBooked() throws Exception {
 		UUID eventId = event(2);
 		String id = book(eventId, ownerId);
-		mvc.perform(patch("/api/events/{id}/status", eventId).with(access(ownerId)).contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(patch("/api/events/{id}/status", eventId).with(adminAccess()).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"status\":\"CANCELLED\"}")).andExpect(status().isOk());
 		mvc.perform(get("/api/bookings/{id}", id).with(access(ownerId)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"))
@@ -211,12 +213,93 @@ class BookingApiIntegrationTests {
 	void enforcesScopesAndDocumentsBookingInput() throws Exception {
 		mvc.perform(get("/api/bookings")).andExpect(status().isUnauthorized());
 		mvc.perform(post("/api/bookings").with(jwt().jwt(token -> token.subject(ownerId.toString()))
-				.authorities(new SimpleGrantedAuthority("SCOPE_api.read")))
+				.authorities(new SimpleGrantedAuthority("ROLE_USER")))
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isForbidden());
 		mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location").exists())
 				.andExpect(jsonPath("$.components.schemas.BookingRequest.properties.userId").doesNotExist());
+	}
+
+	@Test
+	void adminReadsAndCancelsOtherUsersBookingsWithoutDeletingHistory() throws Exception {
+		UUID eventId = event(1);
+		String id = book(eventId, ownerId);
+		mvc.perform(get("/api/bookings/{id}", id).with(adminAccess()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.participant.id").value(ownerId.toString()))
+				.andExpect(jsonPath("$.participant.displayName").value("Demo User"))
+				.andExpect(jsonPath("$.participant.passwordHash").doesNotExist())
+				.andExpect(jsonPath("$.participant.role").doesNotExist());
+		mvc.perform(post("/api/bookings/{id}/cancel", id).with(adminAccess()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+		when(clock.instant()).thenReturn(END);
+		mvc.perform(post("/api/bookings/{id}/cancel", id).with(adminAccess())).andExpect(status().isOk());
+		mvc.perform(get("/api/bookings/{id}", id).with(access(ownerId)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM bookings", Integer.class)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM bookings WHERE status = 'CONFIRMED'", Integer.class)).isZero();
+	}
+
+	@Test
+	void adminListingRequiresExplicitAllScopeAndFiltersByEventAndStatus() throws Exception {
+		UUID firstEvent = event(3);
+		UUID secondEvent = event(1);
+		String confirmed = book(firstEvent, ownerId);
+		String cancelled = book(firstEvent, otherId);
+		String mine = book(firstEvent, adminId);
+		book(secondEvent, otherId);
+		mvc.perform(post("/api/bookings/{id}/cancel", cancelled).with(adminAccess())).andExpect(status().isOk());
+		mvc.perform(get("/api/bookings").with(adminAccess()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].id").value(mine));
+		mvc.perform(get("/api/bookings").param("scope", "all").with(adminAccess()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(4)));
+		mvc.perform(get("/api/bookings").param("scope", "all").param("eventId", firstEvent.toString())
+				.param("status", "CANCELLED").with(adminAccess()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].id").value(cancelled));
+		mvc.perform(get("/api/bookings").param("eventId", firstEvent.toString()).param("status", "CONFIRMED")
+				.param("userId", otherId.toString()).param("isAdmin", "true").with(access(ownerId)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].id").value(confirmed));
+		mvc.perform(get("/api/bookings").param("scope", "all").param("isAdmin", "true").with(access(ownerId)))
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(403));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"STARTED", "LIVE", "COMPLETED"})
+	void adminCancellationStillHonorsEventLifecycle(String state) throws Exception {
+		UUID eventId = event(1);
+		String id = book(eventId, ownerId);
+		if (state.equals("STARTED")) {
+			when(clock.instant()).thenReturn(START);
+		} else {
+			events.changeStatus(eventId, com.arena.backend.domain.event.EventStatus.LIVE);
+			if (state.equals("COMPLETED")) {
+				events.changeStatus(eventId, com.arena.backend.domain.event.EventStatus.COMPLETED);
+			}
+		}
+		mvc.perform(post("/api/bookings/{id}/cancel", id).with(adminAccess()))
+				.andExpect(status().isConflict());
+		mvc.perform(get("/api/bookings/{id}", id).with(adminAccess()))
+				.andExpect(jsonPath("$.status").value("CONFIRMED"));
+	}
+
+	@Test
+	void validatesListScopeAndReportsMissingBookingsForAdmin() throws Exception {
+		mvc.perform(get("/api/bookings").param("scope", "everyone").with(adminAccess()))
+				.andExpect(status().isBadRequest());
+		mvc.perform(get("/api/bookings").param("status", "UNKNOWN").with(adminAccess()))
+				.andExpect(status().isBadRequest());
+		mvc.perform(get("/api/bookings").param("eventId", "invalid").with(adminAccess()))
+				.andExpect(status().isBadRequest());
+		mvc.perform(get("/api/bookings/{id}", UUID.randomUUID()).with(adminAccess()))
+				.andExpect(status().isNotFound());
+		mvc.perform(post("/api/bookings/{id}/cancel", UUID.randomUUID()).with(adminAccess()))
+				.andExpect(status().isNotFound());
 	}
 
 	private UUID event(int capacity) {
@@ -238,7 +321,7 @@ class BookingApiIntegrationTests {
 	}
 
 	private MockHttpServletRequestBuilder capacityUpdate(UUID id, int capacity) {
-		return put("/api/events/{id}", id).with(access(ownerId)).contentType(MediaType.APPLICATION_JSON)
+		return put("/api/events/{id}", id).with(adminAccess()).contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.createObjectNode().put("title", "Football").put("sport", "Football")
 						.put("location", "Park").put("startsAt", START.toString()).put("endsAt", END.toString())
 						.put("capacity", capacity).toString());
@@ -246,6 +329,11 @@ class BookingApiIntegrationTests {
 
 	private JwtRequestPostProcessor access(UUID userId) {
 		return jwt().jwt(token -> token.subject(userId.toString()))
-				.authorities(new SimpleGrantedAuthority("SCOPE_api.read"), new SimpleGrantedAuthority("SCOPE_api.write"));
+				.authorities(new SimpleGrantedAuthority("SCOPE_api.access"), new SimpleGrantedAuthority("ROLE_USER"));
+	}
+
+	private JwtRequestPostProcessor adminAccess() {
+		return jwt().jwt(token -> token.subject(adminId.toString()))
+				.authorities(new SimpleGrantedAuthority("SCOPE_api.access"), new SimpleGrantedAuthority("ROLE_ADMIN"));
 	}
 }

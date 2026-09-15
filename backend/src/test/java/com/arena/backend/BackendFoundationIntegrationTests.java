@@ -64,7 +64,7 @@ class BackendFoundationIntegrationTests {
 		mvc.perform(get("/api/diagnostics/errors/400"))
 				.andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/diagnostics/errors/400")
-				.with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.read"))))
+				.with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api.access"), new SimpleGrantedAuthority("ROLE_USER"))))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.status").value(404));
 	}

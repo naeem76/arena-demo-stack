@@ -4,17 +4,21 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import com.arena.backend.configuration.SecurityProperties;
 import com.arena.backend.domain.user.User;
 import com.arena.backend.domain.user.UserRepository;
+import com.arena.backend.domain.user.UserRole;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationRunner;
@@ -46,6 +50,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -103,7 +108,14 @@ class SecurityIntegrationTests {
 		demoUserInitializer.run(new DefaultApplicationArguments());
 		assertThat(users.findByUsername("demo").orElseThrow().getPasswordHash()).isEqualTo(hash);
 		assertThat(objectMapper.valueToTree(user).has("passwordHash")).isFalse();
-		assertThat(securityProperties.toString()).doesNotContain("arena-demo");
+		assertThat(securityProperties.toString()).doesNotContain("arena-demo", "arena-admin");
+		assertThat(user.getRole()).isEqualTo(UserRole.USER);
+		User admin = users.findByUsername("admin").orElseThrow();
+		assertThat(admin.getRole()).isEqualTo(UserRole.ADMIN);
+		String adminHash = admin.getPasswordHash();
+		assertThat(passwordEncoder.matches("arena-admin", adminHash)).isTrue();
+		demoUserInitializer.run(new DefaultApplicationArguments());
+		assertThat(users.findByUsername("admin").orElseThrow().getPasswordHash()).isEqualTo(adminHash);
 	}
 
 	@ParameterizedTest
@@ -160,20 +172,20 @@ class SecurityIntegrationTests {
 	@Test
 	void rejectsExpiredToken() throws Exception {
 		mvc.perform(get("/api/diagnostics/errors/404").header(HttpHeaders.AUTHORIZATION,
-				"Bearer " + signedToken(ISSUER, "api.read", Instant.now().minusSeconds(120))))
+				"Bearer " + signedToken(ISSUER, "api.access", Instant.now().minusSeconds(120))))
 				.andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void rejectsWrongIssuer() throws Exception {
 		mvc.perform(get("/api/diagnostics/errors/404").header(HttpHeaders.AUTHORIZATION,
-				"Bearer " + signedToken("http://wrong-issuer.example", "api.read", Instant.now().plusSeconds(300))))
+				"Bearer " + signedToken("http://wrong-issuer.example", "api.access", Instant.now().plusSeconds(300))))
 				.andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void rejectsTamperedSignature() throws Exception {
-		String[] parts = signedToken(ISSUER, "api.read", Instant.now().plusSeconds(300)).split("\\.");
+		String[] parts = signedToken(ISSUER, "api.access", Instant.now().plusSeconds(300)).split("\\.");
 		parts[2] = (parts[2].startsWith("a") ? "b" : "a") + parts[2].substring(1);
 		mvc.perform(get("/api/diagnostics/errors/404")
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + String.join(".", parts)))
@@ -181,7 +193,7 @@ class SecurityIntegrationTests {
 	}
 
 	@Test
-	void readOnlyTokenCannotWrite() throws Exception {
+	void legacyReadScopeDoesNotGrantApiAccess() throws Exception {
 		mvc.perform(post("/api/diagnostics/validation")
 				.header(HttpHeaders.AUTHORIZATION,
 						"Bearer " + signedToken(ISSUER, "api.read", Instant.now().plusSeconds(300)))
@@ -259,7 +271,7 @@ class SecurityIntegrationTests {
 	void requiresPkceChallengeAtAuthorization() throws Exception {
 		mvc.perform(get("/oauth2/authorize").session(login())
 				.queryParam("client_id", "scalar").queryParam("response_type", "code")
-				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", "api.read"))
+				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", "api.access"))
 				.andExpect(status().isFound())
 				.andExpect(header().string(HttpHeaders.LOCATION, containsString("error=invalid_request")));
 	}
@@ -308,7 +320,7 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"openid api.read", "openid profile api.read"})
+	@ValueSource(strings = {"openid api.access", "openid profile api.access"})
 	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String scopes) throws Exception {
 		JsonNode tokens = objectMapper.readTree(exchange(authorize(scopes), VERIFIER)
 				.andExpect(status().isOk())
@@ -364,20 +376,74 @@ class SecurityIntegrationTests {
 		assertThat(objectMapper.readTree(body).get("keys").size()).isEqualTo(1);
 	}
 
+	@Test
+	void identityScopesDoNotGrantApiAccessEvenToAnAdmin() throws Exception {
+		String token = signedToken(ISSUER, "openid profile", Instant.now().plusSeconds(300), List.of("ADMIN"));
+		mvc.perform(post("/api/diagnostics/validation").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"sample\",\"quantity\":1}"))
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("insufficient_scope")))
+				.andExpect(jsonPath("$.status").value(403));
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void apiScopeRequiresAKnownRole() throws Exception {
+		String token = signedToken(ISSUER, "api.access", Instant.now().plusSeconds(300), List.of());
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+				.andExpect(status().isForbidden());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"demo,arena-demo,USER", "admin,arena-admin,ADMIN"})
+	void issuedRolesComeFromTheAccountAndControlEventManagement(String username, String password, String role)
+			throws Exception {
+		JsonNode tokens = objectMapper.readTree(exchange(
+				authorize("openid profile api.access", login(username, password)), VERIFIER)
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		String accessToken = tokens.get("access_token").asText();
+		assertThat(jwtDecoder.decode(accessToken).getClaimAsStringList("roles")).containsExactly(role);
+		assertThat(jwtDecoder.decode(tokens.get("id_token").asText()).getClaims()).doesNotContainKey("roles");
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+				.andExpect(status().isOk());
+		mvc.perform(delete("/api/events/{id}", UUID.randomUUID())
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+				.andExpect(status().is(role.equals("ADMIN") ? 404 : 403));
+	}
+
+	@Test
+	void legacyReadWriteScopesCannotBeRequested() throws Exception {
+		mvc.perform(get("/oauth2/authorize").session(login())
+				.queryParam("client_id", "scalar").queryParam("response_type", "code")
+				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", "api.read api.write"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, containsString("error=invalid_scope")));
+	}
+
 	private MockHttpSession login() throws Exception {
+		return login("demo", "arena-demo");
+	}
+
+	private MockHttpSession login(String username, String password) throws Exception {
 		return (MockHttpSession) mvc.perform(post("/login").with(csrf())
-				.param("username", "demo").param("password", "arena-demo"))
+				.param("username", username).param("password", password))
 				.andExpect(status().isFound()).andReturn().getRequest().getSession(false);
 	}
 
 	private String authorize() throws Exception {
-		return authorize("api.read api.write");
+		return authorize("api.access");
 	}
 
 	private String authorize(String scopes) throws Exception {
+		return authorize(scopes, login());
+	}
+
+	private String authorize(String scopes, MockHttpSession session) throws Exception {
 		String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
 				MessageDigest.getInstance("SHA-256").digest(VERIFIER.getBytes(StandardCharsets.US_ASCII)));
-		String redirect = mvc.perform(get("/oauth2/authorize").session(login())
+		String redirect = mvc.perform(get("/oauth2/authorize").session(session)
 				.queryParam("client_id", "scalar").queryParam("response_type", "code")
 				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", scopes)
 				.queryParam("nonce", "test-nonce").queryParam("state", "test-state")
@@ -397,8 +463,13 @@ class SecurityIntegrationTests {
 	}
 
 	private String signedToken(String issuer, String scope, Instant expiresAt) {
+		return signedToken(issuer, scope, expiresAt, List.of("USER"));
+	}
+
+	private String signedToken(String issuer, String scope, Instant expiresAt, List<String> roles) {
 		JwtClaimsSet claims = JwtClaimsSet.builder().issuer(issuer).subject("demo")
-				.issuedAt(expiresAt.minusSeconds(600)).expiresAt(expiresAt).claim("scope", scope).build();
+				.issuedAt(expiresAt.minusSeconds(600)).expiresAt(expiresAt).claim("scope", scope)
+				.claim("roles", roles).build();
 		return jwtEncoder.encode(JwtEncoderParameters.from(
 				JwsHeader.with(SignatureAlgorithm.RS256).build(), claims)).getTokenValue();
 	}

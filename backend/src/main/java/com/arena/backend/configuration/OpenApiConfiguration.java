@@ -27,8 +27,7 @@ public class OpenApiConfiguration {
 						.flows(new OAuthFlows().authorizationCode(new OAuthFlow()
 								.authorizationUrl(properties.issuer() + "/oauth2/authorize")
 								.tokenUrl(properties.issuer() + "/oauth2/token")
-								.scopes(new Scopes().addString(ApiScopes.READ, "Read API resources")
-										.addString(ApiScopes.WRITE, "Create, update, and delete API resources")
+								.scopes(new Scopes().addString(ApiScopes.ACCESS, "Access the API; roles and ownership determine permitted actions")
 										.addString(OidcScopes.OPENID, "Request an OpenID Connect ID token")
 										.addString(OidcScopes.PROFILE, "Include the user's display name"))))))
 				.addSecurityItem(new SecurityRequirement().addList("arenaOAuth"));

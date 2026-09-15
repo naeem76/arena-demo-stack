@@ -6,10 +6,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import com.arena.backend.domain.user.User;
 import com.arena.backend.domain.user.UserRepository;
+import com.arena.backend.domain.user.UserRole;
 import com.arena.backend.security.ApiScopes;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -84,8 +86,7 @@ public class AuthorizationServerConfiguration {
 				.clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
 				.redirectUri(properties.issuer() + "/scalar")
-				.scope(ApiScopes.READ)
-				.scope(ApiScopes.WRITE)
+				.scope(ApiScopes.ACCESS)
 				.scope(OidcScopes.OPENID)
 				.scope(OidcScopes.PROFILE)
 				.clientSettings(ClientSettings.builder().requireProofKey(true).build())
@@ -110,7 +111,7 @@ public class AuthorizationServerConfiguration {
 				.map(user -> org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
 						.password(user.getPasswordHash())
 						.disabled(!user.isEnabled())
-						.roles("USER")
+						.roles(user.getRole().name())
 						.build())
 				.orElseThrow(() -> new UsernameNotFoundException("Invalid username or password."));
 	}
@@ -120,11 +121,18 @@ public class AuthorizationServerConfiguration {
 	ApplicationRunner demoUserInitializer(SecurityProperties properties, UserRepository users,
 			PasswordEncoder passwordEncoder) {
 		return args -> {
-			if (users.findByUsername(properties.demoUsername()).isEmpty()) {
-				users.save(new User(properties.demoUsername(), "Demo User",
-						passwordEncoder.encode(properties.demoPassword())));
-			}
+			seedUser(users, passwordEncoder, properties.demoUsername(), "Demo User",
+					properties.demoPassword(), UserRole.USER);
+			seedUser(users, passwordEncoder, properties.demoAdminUsername(), "Demo Admin",
+					properties.demoAdminPassword(), UserRole.ADMIN);
 		};
+	}
+
+	private void seedUser(UserRepository users, PasswordEncoder passwordEncoder, String username,
+			String displayName, String password, UserRole role) {
+		if (users.findByUsername(username).isEmpty()) {
+			users.save(new User(username, displayName, passwordEncoder.encode(password), role));
+		}
 	}
 
 	@Bean
@@ -134,6 +142,9 @@ public class AuthorizationServerConfiguration {
 			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) || idToken) {
 				User user = users.findByUsername(context.getPrincipal().getName()).orElseThrow();
 				context.getClaims().subject(user.getId().toString());
+				if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+					context.getClaims().claim("roles", List.of(user.getRole().name()));
+				}
 				if (idToken && context.getAuthorizedScopes().contains(OidcScopes.PROFILE)) {
 					context.getClaims().claim("name", user.getDisplayName());
 				}

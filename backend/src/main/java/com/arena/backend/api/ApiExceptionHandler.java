@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -73,6 +74,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		};
 		return handleExceptionInternal(ex, ProblemDetail.forStatusAndDetail(status, ex.getMessage()),
 				new HttpHeaders(), status, request);
+	}
+
+	@ExceptionHandler(AccessDeniedException.class)
+	void handleAccessDenied(AccessDeniedException ex) {
+		// Preserve Spring Security's shared forbidden response for service-level authorization.
+		throw ex;
 	}
 
 	@ExceptionHandler(Exception.class)

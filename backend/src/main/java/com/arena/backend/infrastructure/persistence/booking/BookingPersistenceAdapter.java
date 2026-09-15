@@ -24,6 +24,16 @@ public class BookingPersistenceAdapter implements BookingRepository {
 	}
 
 	@Override
+	public Optional<Booking> findById(UUID id) {
+		return repository.findById(id);
+	}
+
+	@Override
+	public Optional<UUID> findEventIdById(UUID id) {
+		return repository.findEventIdById(id);
+	}
+
+	@Override
 	public Optional<Booking> findByIdAndUserId(UUID id, UUID userId) {
 		return repository.findByIdAndUser_Id(id, userId);
 	}
@@ -34,8 +44,8 @@ public class BookingPersistenceAdapter implements BookingRepository {
 	}
 
 	@Override
-	public List<Booking> findByUserId(UUID userId) {
-		return repository.findAllByUser_IdOrderByCreatedAtDescIdDesc(userId);
+	public List<Booking> findByUserId(UUID userId, UUID eventId, BookingStatus status) {
+		return repository.findOwned(userId, eventId, status);
 	}
 
 	@Override
@@ -51,5 +61,10 @@ public class BookingPersistenceAdapter implements BookingRepository {
 	@Override
 	public long countActiveByEventId(UUID eventId) {
 		return repository.countByEvent_IdAndStatus(eventId, BookingStatus.CONFIRMED);
+	}
+
+	@Override
+	public List<Booking> findAll(UUID eventId, BookingStatus status) {
+		return repository.findFiltered(eventId, status);
 	}
 }

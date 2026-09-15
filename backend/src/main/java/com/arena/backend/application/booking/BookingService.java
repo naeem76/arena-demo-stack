@@ -14,6 +14,9 @@ import com.arena.backend.domain.event.EventRepository;
 import com.arena.backend.domain.event.EventStatus;
 import com.arena.backend.domain.user.User;
 import com.arena.backend.domain.user.UserRepository;
+import com.arena.backend.domain.user.UserRole;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,13 +36,20 @@ public class BookingService {
 		this.clock = clock;
 	}
 
-	public List<Booking> list(UUID userId) {
-		return bookings.findByUserId(userId);
+	public List<Booking> list(Authentication caller, boolean allUsers, UUID eventId, BookingStatus status) {
+		if (allUsers) {
+			if (!isAdmin(caller)) {
+				throw new AccessDeniedException("Administrator access is required.");
+			}
+			return bookings.findAll(eventId, status);
+		}
+		return bookings.findByUserId(userId(caller), eventId, status);
 	}
 
-	public Booking findById(UUID id, UUID userId) {
-		return bookings.findByIdAndUserId(id, userId)
-				.orElseThrow(() -> new ResourceNotFoundException("Booking " + id + " was not found."));
+	public Booking findById(UUID id, Authentication caller) {
+		var booking = isAdmin(caller) ? bookings.findById(id)
+				: bookings.findByIdAndUserId(id, userId(caller));
+		return booking.orElseThrow(() -> new ResourceNotFoundException("Booking " + id + " was not found."));
 	}
 
 	@Transactional
@@ -60,12 +70,14 @@ public class BookingService {
 	}
 
 	@Transactional
-	public Booking cancel(UUID id, UUID userId) {
+	public Booking cancel(UUID id, Authentication caller) {
 		// Read only the event ID before locking, so no stale Booking entity is cached while waiting.
-		UUID eventId = bookings.findEventIdByIdAndUserId(id, userId)
+		var accessibleEventId = isAdmin(caller) ? bookings.findEventIdById(id)
+				: bookings.findEventIdByIdAndUserId(id, userId(caller));
+		UUID eventId = accessibleEventId
 				.orElseThrow(() -> new ResourceNotFoundException("Booking " + id + " was not found."));
 		Event event = lockEvent(eventId);
-		Booking booking = findById(id, userId);
+		Booking booking = findById(id, caller);
 		if (booking.getStatus() == BookingStatus.CANCELLED) {
 			return booking;
 		}
@@ -75,6 +87,15 @@ public class BookingService {
 		}
 		booking.cancel();
 		return bookings.save(booking);
+	}
+
+	private boolean isAdmin(Authentication caller) {
+		return caller.getAuthorities().stream()
+				.anyMatch(authority -> authority.getAuthority().equals("ROLE_" + UserRole.ADMIN.name()));
+	}
+
+	private UUID userId(Authentication caller) {
+		return UUID.fromString(caller.getName());
 	}
 
 	private Event lockEvent(UUID id) {

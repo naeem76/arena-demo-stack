@@ -17,11 +17,15 @@ import com.arena.backend.domain.user.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -100,11 +104,18 @@ class BookingConcurrencyIntegrationTests {
 		assertThat(bookings.countActiveByEventId(eventId)).isEqualTo(events.findById(eventId).getCapacity());
 	}
 
-	@Test
-	void simultaneousCancellationsAreIdempotentAndPreserveHistory() throws Exception {
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	void simultaneousCancellationsAreIdempotentAndPreserveHistory(boolean cancelAsAdmin) throws Exception {
 		UUID eventId = event(1);
 		UUID bookingId = service.create(eventId, firstUser).getId();
-		assertThat(race(() -> service.cancel(bookingId, firstUser), () -> service.cancel(bookingId, firstUser)))
+		var owner = UsernamePasswordAuthenticationToken.authenticated(firstUser.toString(), null,
+				List.of(new SimpleGrantedAuthority("ROLE_USER")));
+		var otherCaller = cancelAsAdmin
+				? UsernamePasswordAuthenticationToken.authenticated(secondUser.toString(), null,
+						List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+				: owner;
+		assertThat(race(() -> service.cancel(bookingId, owner), () -> service.cancel(bookingId, otherCaller)))
 				.containsExactly(true, true);
 		assertThat(bookings.countActiveByEventId(eventId)).isZero();
 		assertThat(bookings.findByUserId(firstUser)).hasSize(1);

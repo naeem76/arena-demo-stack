@@ -40,7 +40,7 @@ public class EventController {
 
 	@GetMapping
 	@Operation(summary = "List events, optionally filtering by sport and status")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public List<EventResponse> list(
 			@RequestParam(required = false) @Size(max = Event.MAX_SPORT_LENGTH) String sport,
 			@RequestParam(required = false) EventStatus status) {
@@ -49,16 +49,16 @@ public class EventController {
 
 	@GetMapping("/{id}")
 	@Operation(summary = "Get event details")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.READ)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public EventResponse get(@PathVariable UUID id) {
 		return EventMapper.toResponse(service.findById(id));
 	}
 
 	@PostMapping
-	@Operation(summary = "Create a scheduled event")
+	@Operation(summary = "Create a scheduled event (admin only)")
 	@ApiResponse(responseCode = "201", description = "Event created",
 			headers = @Header(name = "Location", description = "URL of the created event"))
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest request) {
 		Event event = service.create(request.title(), request.description(), request.sport(), request.location(),
 				request.startsAt(), request.endsAt(), request.capacity());
@@ -67,24 +67,24 @@ public class EventController {
 	}
 
 	@PutMapping("/{id}")
-	@Operation(summary = "Replace the editable details of a scheduled event")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
+	@Operation(summary = "Replace scheduled event details (admin only)")
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public EventResponse update(@PathVariable UUID id, @Valid @RequestBody EventRequest request) {
 		return EventMapper.toResponse(service.update(id, request.title(), request.description(), request.sport(),
 				request.location(), request.startsAt(), request.endsAt(), request.capacity()));
 	}
 
 	@PatchMapping("/{id}/status")
-	@Operation(summary = "Change event status through an allowed lifecycle transition")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
+	@Operation(summary = "Change event status through an allowed lifecycle transition (admin only)")
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public EventResponse changeStatus(@PathVariable UUID id, @Valid @RequestBody EventStatusRequest request) {
 		return EventMapper.toResponse(service.changeStatus(id, request.status()));
 	}
 
 	@DeleteMapping("/{id}")
-	@Operation(summary = "Delete an event")
+	@Operation(summary = "Delete an event (admin only)")
 	@ApiResponse(responseCode = "204", description = "Event deleted")
-	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.WRITE)
+	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public ResponseEntity<Void> delete(@PathVariable UUID id) {
 		service.delete(id);
 		return ResponseEntity.noContent().build();
