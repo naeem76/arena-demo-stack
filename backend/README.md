@@ -5,12 +5,47 @@ See the [root README](../README.md) for build and startup instructions.
 ## Structure
 
 - `api/`: HTTP controllers and centralized exception handling.
+- `domain/event/`: the Event model, status enum, and repository contract.
+- `infrastructure/persistence/event/`: Spring Data JPA repository and its adapter.
 - `configuration/`: OpenAPI, CORS, authorization-server, and security configuration.
 - `security/`: API scopes and security-filter Problem Details responses.
 - `api/diagnostics/`: diagnostic endpoints enabled only by the `diagnostics` profile.
 
-The backend is a single Maven project. Domain, application-service, and persistence
-packages will be introduced with the corresponding functionality.
+The backend is a single Maven project. Application-service and API DTO types will
+be introduced with the event use cases and endpoints.
+
+## Event persistence
+
+`Event` is both the domain model and JPA-mapped entity. A separate persistence
+model would duplicate its current fields without providing a useful mapping
+boundary. Future API request/response DTOs will define the external contract.
+
+| Field | Storage and constraints |
+| --- | --- |
+| `id` | Application-generated UUID primary key |
+| `title` | Required, nonblank, up to 150 characters |
+| `description` | Optional, up to 2,000 characters |
+| `sport` | Required, nonblank, up to 50 characters; new sport names require no enum/schema change |
+| `location` | Required, nonblank, up to 200 characters |
+| `startsAt`, `endsAt` | Required instants; end must be after start |
+| `capacity` | Positive integer |
+| `status` | `SCHEDULED`, `LIVE`, `COMPLETED`, or `CANCELLED`; new events default to `SCHEDULED` |
+| `createdAt`, `updatedAt` | Automatically maintained through Spring Data JPA auditing |
+
+Times use Java `Instant` and PostgreSQL `TIMESTAMP WITH TIME ZONE`. Status is stored
+by name, with a database check constraint, rather than by enum ordinal. The initial
+schema is defined in [V1__create_events.sql](src/main/resources/db/migration/V1__create_events.sql).
+Subsequent schema changes belong in new versioned migrations; applied migrations
+should not be edited. Historical event times are valid persisted data.
+
+`EventRepository` exposes save, find-by-ID, list, and delete-by-ID operations.
+`EventPersistenceAdapter` implements that contract through `JpaEventRepository`,
+keeping Spring Data-specific operations inside infrastructure. Entity fields are
+validated on persistence, and database constraints also protect direct SQL writes.
+
+PostgreSQL-backed tests verify CRUD, UUID generation, audit timestamps, status
+mapping, and schema constraints. Event lifecycle transition policies, booking
+rules, and event HTTP endpoints will be added with their use cases.
 
 ## API documentation
 

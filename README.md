@@ -4,8 +4,8 @@ This repository contains the Arena full-stack developer assessment. The project
 will include a Spring Boot backend, an Angular web application, and a Flutter
 mobile application.
 
-The backend foundation and PostgreSQL development environment are currently set
-up. This README will be updated as the implementation progresses.
+The backend foundation, PostgreSQL development environment, and Event persistence
+are currently implemented. This README will be updated as the implementation progresses.
 
 ## Run locally
 
@@ -67,7 +67,8 @@ Build and verify from `backend/` with Docker running:
 ```
 
 Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
-and PKCE exchanges, JWT validation, scope enforcement, and application startup
+and PKCE exchanges, JWT validation, scope enforcement, Event persistence and schema
+constraints, and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.
@@ -75,7 +76,6 @@ verification command above separately.
 See [backend API foundation](backend/README.md) for Scalar sign-in instructions,
 error conventions, CORS configuration, and the opt-in diagnostic controller.
 
-This initial scaffold has no domain endpoints yet. Flyway is
-configured through Spring Boot auto-configuration; versioned migrations will be
-added alongside the domain schema. Hibernate validates the schema rather than
-creating or updating it.
+Event persistence is implemented; event API endpoints will follow. Flyway applies
+versioned migrations from `backend/src/main/resources/db/migration` at startup.
+Hibernate validates the schema rather than creating or updating it.
