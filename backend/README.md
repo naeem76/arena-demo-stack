@@ -228,15 +228,29 @@ validates access tokens for `/api/**` requests.
 | `/.well-known/oauth-authorization-server` | Authorization-server metadata |
 | `/.well-known/openid-configuration` | OIDC discovery document |
 | `/userinfo` | OIDC subject and scope-authorized profile claims; requires an access token |
+| `/connect/logout` | OIDC RP-initiated logout with an ID-token hint and registered redirect |
 | `/login` | Spring's demo-user sign-in form |
 
 These protocol endpoints are supplied by Spring Security filters. In Scalar they
 are represented by the `arenaOAuth` security scheme, rather than duplicate
 controller definitions.
 
-The `scalar` client is public and requires authorization code + PKCE (SHA-256).
-It has no client secret. Access tokens last 15 minutes; refresh tokens and the
+The `scalar` and `arena-web` clients are public and require authorization code +
+PKCE (SHA-256). Neither has a client secret. Access tokens last 15 minutes; refresh tokens and the
 password/client-credentials grants are not configured.
+
+`arena-web` is the Angular client, with registered scopes `openid`, `profile`, and
+`api.access`. Its callback is `${app.security.web-origin}/auth/callback` and its
+registered post-logout redirect is `${app.security.web-origin}/signed-out`.
+`WEB_ORIGIN` sets this property and defaults to `http://localhost:4200`; configure
+`CORS_ALLOWED_ORIGINS` to allow that origin when changing it. Scalar's callback
+remains `${app.security.issuer}/scalar`.
+
+For Angular sign-out, navigate to `/connect/logout` with `id_token_hint` containing
+the issued ID token and `post_logout_redirect_uri` set to the registered
+`/signed-out` URL. Optional `state` is returned to that URL. Spring invalidates
+the browser login session and rejects unregistered logout redirects. Issued
+access JWTs retain their normal lifetime.
 
 Request `openid` alongside `api.access` to receive an ID token. Add `profile`
 to include the user's display name in the standard `name` claim. Both access and
@@ -248,7 +262,6 @@ Spring's default UserInfo implementation returns `sub` and, when `profile` was
 authorized, `name`, derived from the ID token. Profile data reflects token issuance
 time. Credentials and password hashes are never included. OAuth-only requests
 without `openid` continue to work and do not receive an ID token or UserInfo access.
-The Angular client and its callback will be registered when the SPA is configured.
 
 - Every request under `/api/**` requires `api.access` and a `USER` or `ADMIN` role.
 - Event mutations additionally require `ADMIN`; booking access is owner-or-admin.

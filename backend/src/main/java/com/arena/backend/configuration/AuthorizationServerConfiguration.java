@@ -80,19 +80,27 @@ public class AuthorizationServerConfiguration {
 
 	@Bean
 	RegisteredClientRepository registeredClients(SecurityProperties properties) {
-		RegisteredClient scalar = RegisteredClient.withId("scalar-ui")
-				.clientId(properties.clientId())
-				.clientName("Scalar API reference")
+		RegisteredClient scalar = publicClient("scalar-ui", properties.clientId(), "Scalar API reference")
+				.redirectUri(properties.issuer() + "/scalar")
+				.build();
+		RegisteredClient web = publicClient("arena-web", "arena-web", "Arena Angular app")
+				.redirectUri(properties.webOrigin() + "/auth/callback")
+				.postLogoutRedirectUri(properties.webOrigin() + "/signed-out")
+				.build();
+		return new InMemoryRegisteredClientRepository(scalar, web);
+	}
+
+	private RegisteredClient.Builder publicClient(String id, String clientId, String clientName) {
+		return RegisteredClient.withId(id)
+				.clientId(clientId)
+				.clientName(clientName)
 				.clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.redirectUri(properties.issuer() + "/scalar")
 				.scope(ApiScopes.ACCESS)
 				.scope(OidcScopes.OPENID)
 				.scope(OidcScopes.PROFILE)
 				.clientSettings(ClientSettings.builder().requireProofKey(true).build())
-				.tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofMinutes(15)).build())
-				.build();
-		return new InMemoryRegisteredClientRepository(scalar);
+				.tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofMinutes(15)).build());
 	}
 
 	@Bean

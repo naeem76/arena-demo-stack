@@ -2,6 +2,7 @@ package com.arena.backend;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
@@ -58,6 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
 		"app.security.issuer=http://localhost:8080",
+		"app.security.web-origin=http://localhost:4200",
 		"app.security.demo-username=demo",
 		"app.security.demo-password=arena-demo"
 })
@@ -68,6 +70,8 @@ class SecurityIntegrationTests {
 
 	private static final String ISSUER = "http://localhost:8080";
 	private static final String REDIRECT_URI = ISSUER + "/scalar";
+	private static final String WEB_ORIGIN = "http://localhost:4200";
+	private static final String WEB_REDIRECT_URI = WEB_ORIGIN + "/auth/callback";
 	private static final String VERIFIER = "a".repeat(64);
 
 	@Autowired
@@ -320,10 +324,14 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"openid api.access", "openid profile api.access"})
-	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String scopes) throws Exception {
-		JsonNode tokens = objectMapper.readTree(exchange(authorize(scopes), VERIFIER)
+	@CsvSource({"scalar,openid api.access", "scalar,openid profile api.access",
+			"arena-web,openid profile api.access"})
+	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String clientId, String scopes) throws Exception {
+		String redirectUri = clientId.equals("arena-web") ? WEB_REDIRECT_URI : REDIRECT_URI;
+		JsonNode tokens = objectMapper.readTree(exchange(
+				authorize(scopes, login(), clientId, redirectUri), VERIFIER, clientId, redirectUri)
 				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN))
 				.andExpect(jsonPath("$.id_token").isString())
 				.andExpect(jsonPath("$.refresh_token").doesNotExist())
 				.andReturn().getResponse().getContentAsString());
@@ -334,15 +342,17 @@ class SecurityIntegrationTests {
 		assertThat(idToken.getSubject()).isEqualTo(user.getId().toString());
 		assertThat(idToken.getSubject()).isEqualTo(jwtDecoder.decode(accessToken).getSubject());
 		assertThat(idToken.getIssuer().toString()).isEqualTo(ISSUER);
-		assertThat(idToken.getAudience()).containsExactly("scalar");
+		assertThat(idToken.getAudience()).containsExactly(clientId);
 		assertThat(idToken.getClaimAsString("nonce")).isEqualTo("test-nonce");
 		assertThat(idToken.getExpiresAt()).isAfter(Instant.now());
 		assertThat(idToken.getClaims()).doesNotContainKeys("password", "passwordHash", "scope");
+		var accessJwt = jwtDecoder.decode(accessToken);
+		assertThat(Duration.between(accessJwt.getIssuedAt(), accessJwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
 		JsonNode userInfo = objectMapper.readTree(mvc.perform(get("/userinfo")
-				.header(HttpHeaders.ORIGIN, "http://localhost:4200")
+				.header(HttpHeaders.ORIGIN, WEB_ORIGIN)
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN))
 				.andExpect(jsonPath("$.sub").value(user.getId().toString()))
 				.andReturn().getResponse().getContentAsString());
 		if (scopes.contains("profile")) {
@@ -353,8 +363,10 @@ class SecurityIntegrationTests {
 			assertThat(idToken.getClaims()).doesNotContainKey("name");
 			assertThat(userInfo.size()).isEqualTo(1);
 		}
-		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
-				.andExpect(status().isOk());
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+				.header(HttpHeaders.ORIGIN, WEB_ORIGIN))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN));
 		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + idTokenValue))
 				.andExpect(status().isForbidden());
 	}
@@ -422,6 +434,70 @@ class SecurityIntegrationTests {
 				.andExpect(header().string(HttpHeaders.LOCATION, containsString("error=invalid_scope")));
 	}
 
+	@Test
+	void angularClientRejectsUnregisteredAuthorizationRedirect() throws Exception {
+		mvc.perform(get("/oauth2/authorize").session(login())
+				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
+				.queryParam("redirect_uri", WEB_ORIGIN + "/unregistered").queryParam("scope", "openid profile api.access")
+				.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", "S256"))
+				.andExpect(status().isBadRequest())
+				.andExpect(header().doesNotExist(HttpHeaders.LOCATION));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "plain"})
+	void angularClientRequiresS256Challenge(String method) throws Exception {
+		var request = get("/oauth2/authorize").session(login())
+				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
+				.queryParam("redirect_uri", WEB_REDIRECT_URI).queryParam("scope", "openid profile api.access");
+		if (!method.isEmpty()) {
+			request.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", method);
+		}
+		String redirect = mvc.perform(request).andExpect(status().isFound())
+				.andReturn().getResponse().getRedirectedUrl();
+		assertThat(redirect).startsWith(WEB_REDIRECT_URI + "?");
+		var parameters = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams();
+		assertThat(parameters.getFirst("error")).isEqualTo("invalid_request");
+		assertThat(parameters).doesNotContainKey("code");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "incorrect-verifier"})
+	void angularClientRejectsMissingOrWrongVerifier(String verifier) throws Exception {
+		String code = authorize("openid profile api.access", login(), "arena-web", WEB_REDIRECT_URI);
+		exchange(code, verifier, "arena-web", WEB_REDIRECT_URI).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void angularRpLogoutValidatesRedirectAndInvalidatesLoginSession() throws Exception {
+		MockHttpSession session = login();
+		String code = authorize("openid profile api.access", session, "arena-web", WEB_REDIRECT_URI);
+		JsonNode tokens = objectMapper.readTree(exchange(code, VERIFIER, "arena-web", WEB_REDIRECT_URI)
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		String idToken = tokens.get("id_token").asText();
+		mvc.perform(get("/connect/logout").session(session)
+				.queryParam("id_token_hint", idToken)
+				.queryParam("post_logout_redirect_uri", WEB_ORIGIN + "/unregistered"))
+				.andExpect(status().isBadRequest())
+				.andExpect(header().doesNotExist(HttpHeaders.LOCATION));
+		assertThat(session.isInvalid()).isFalse();
+		// The rejected logout must leave the real login usable for authorization.
+		authorize("openid profile api.access", session, "arena-web", WEB_REDIRECT_URI);
+		mvc.perform(get("/connect/logout").session(session)
+				.queryParam("id_token_hint", idToken)
+				.queryParam("post_logout_redirect_uri", WEB_ORIGIN + "/signed-out")
+				.queryParam("state", "logout-state"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, WEB_ORIGIN + "/signed-out?state=logout-state"));
+		assertThat(session.isInvalid()).isTrue();
+		mvc.perform(get("/oauth2/authorize").accept(MediaType.TEXT_HTML)
+				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
+				.queryParam("redirect_uri", WEB_REDIRECT_URI).queryParam("scope", "openid profile api.access")
+				.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", "S256"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost/login"));
+	}
+
 	private MockHttpSession login() throws Exception {
 		return login("demo", "arena-demo");
 	}
@@ -441,14 +517,19 @@ class SecurityIntegrationTests {
 	}
 
 	private String authorize(String scopes, MockHttpSession session) throws Exception {
+		return authorize(scopes, session, "scalar", REDIRECT_URI);
+	}
+
+	private String authorize(String scopes, MockHttpSession session, String clientId, String redirectUri) throws Exception {
 		String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
 				MessageDigest.getInstance("SHA-256").digest(VERIFIER.getBytes(StandardCharsets.US_ASCII)));
 		String redirect = mvc.perform(get("/oauth2/authorize").session(session)
-				.queryParam("client_id", "scalar").queryParam("response_type", "code")
-				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", scopes)
+				.queryParam("client_id", clientId).queryParam("response_type", "code")
+				.queryParam("redirect_uri", redirectUri).queryParam("scope", scopes)
 				.queryParam("nonce", "test-nonce").queryParam("state", "test-state")
 				.queryParam("code_challenge", challenge).queryParam("code_challenge_method", "S256"))
 				.andExpect(status().isFound()).andReturn().getResponse().getRedirectedUrl();
+		assertThat(redirect).startsWith(redirectUri + "?");
 		var parameters = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams();
 		assertThat(parameters.getFirst("state")).isEqualTo("test-state");
 		String code = parameters.getFirst("code");
@@ -457,9 +538,14 @@ class SecurityIntegrationTests {
 	}
 
 	private ResultActions exchange(String code, String verifier) throws Exception {
+		return exchange(code, verifier, "scalar", REDIRECT_URI);
+	}
+
+	private ResultActions exchange(String code, String verifier, String clientId, String redirectUri) throws Exception {
 		return mvc.perform(post("/oauth2/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-				.param("grant_type", "authorization_code").param("client_id", "scalar")
-				.param("redirect_uri", REDIRECT_URI).param("code", code).param("code_verifier", verifier));
+				.header(HttpHeaders.ORIGIN, WEB_ORIGIN)
+				.param("grant_type", "authorization_code").param("client_id", clientId)
+				.param("redirect_uri", redirectUri).param("code", code).param("code_verifier", verifier));
 	}
 
 	private String signedToken(String issuer, String scope, Instant expiresAt) {

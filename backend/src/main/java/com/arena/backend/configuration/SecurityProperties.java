@@ -9,6 +9,7 @@ import org.springframework.validation.annotation.Validated;
 public record SecurityProperties(
 		@NotBlank String issuer,
 		@NotBlank String clientId,
+		@NotBlank String webOrigin,
 		@NotBlank String demoUsername,
 		@NotBlank String demoPassword,
 		@NotBlank String demoAdminUsername,
@@ -16,7 +17,7 @@ public record SecurityProperties(
 
 	@Override
 	public String toString() {
-		return "SecurityProperties[issuer=" + issuer + ", clientId=" + clientId
+		return "SecurityProperties[issuer=" + issuer + ", clientId=" + clientId + ", webOrigin=" + webOrigin
 				+ ", demoUsername=" + demoUsername + ", demoPassword=[REDACTED]"
 				+ ", demoAdminUsername=" + demoAdminUsername + ", demoAdminPassword=[REDACTED]]";
 	}

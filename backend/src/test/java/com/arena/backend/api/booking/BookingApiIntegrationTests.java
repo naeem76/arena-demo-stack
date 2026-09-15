@@ -217,6 +217,9 @@ class BookingApiIntegrationTests {
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isForbidden());
 		mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.paths['/api/bookings'].get.responses['200'].content['application/json'].schema.type").value("array"))
+				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].content['application/json']").exists())
+				.andExpect(jsonPath("$.components.schemas.BookingResponse.required").value(org.hamcrest.Matchers.hasItems("id", "event", "participant")))
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location").exists())
 				.andExpect(jsonPath("$.components.schemas.BookingRequest.properties.userId").doesNotExist());
 	}

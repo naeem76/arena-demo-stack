@@ -226,6 +226,10 @@ class EventApiIntegrationTests {
 	@Test
 	void documentsEventContractsInOpenApi() throws Exception {
 		mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.paths['/api/events'].get.responses['200'].content['application/json'].schema.type").value("array"))
+				.andExpect(jsonPath("$.paths['/api/events'].post.responses['201'].content['application/json']").exists())
+				.andExpect(jsonPath("$.components.schemas.EventResponse.required").value(org.hamcrest.Matchers.hasItems("id", "title", "status")))
+				.andExpect(jsonPath("$.components.schemas.EventResponse.properties.description.type").value(org.hamcrest.Matchers.hasItems("string", "null")))
 				.andExpect(jsonPath("$.paths['/api/events'].post.responses['201'].headers.Location").exists())
 				.andExpect(jsonPath("$.paths['/api/events/{id}'].delete.responses['204']").exists())
 				.andExpect(jsonPath("$.components.schemas.EventRequest.properties.id").doesNotExist())
