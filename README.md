@@ -20,6 +20,7 @@ docker compose up --build --wait
 - Backend health: <http://localhost:8080/actuator/health>
 - Interactive API reference (Scalar): <http://localhost:8080/scalar>
 - OpenAPI document: <http://localhost:8080/v3/api-docs>
+- OpenID Connect discovery: <http://localhost:8080/.well-known/openid-configuration>
 - Local demo sign-in for Scalar: `demo` / `arena-demo`
 - PostgreSQL: `localhost:5432`, database `arena`
 - Local development database credentials: `arena` / `arena_local`
@@ -67,9 +68,9 @@ Build and verify from `backend/` with Docker running:
 ```
 
 Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
-and PKCE exchanges, JWT validation, scope enforcement, password storage, account
-login, Event CRUD, booking ownership/history, concurrent capacity enforcement,
-persistence and schema constraints, and application startup
+and PKCE exchanges, OIDC discovery/ID tokens/UserInfo, JWT validation, scope
+enforcement, password storage, account login, Event CRUD, booking ownership/history,
+concurrent capacity enforcement, persistence and schema constraints, and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.

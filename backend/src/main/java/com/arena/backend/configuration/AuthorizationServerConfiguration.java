@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -31,6 +32,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
+import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -46,8 +49,10 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 @Configuration(proxyBeanMethods = false)
@@ -59,11 +64,15 @@ public class AuthorizationServerConfiguration {
 	SecurityFilterChain authorizationServerChain(HttpSecurity http) throws Exception {
 		var authorizationServer = OAuth2AuthorizationServerConfigurer.authorizationServer();
 		http.securityMatcher(authorizationServer.getEndpointsMatcher())
-				.with(authorizationServer, configurer -> {})
+				.cors(Customizer.withDefaults())
+				.with(authorizationServer, configurer -> configurer.oidc(Customizer.withDefaults()))
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-				.exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-						new LoginUrlAuthenticationEntryPoint("/login"),
-						new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
+				.exceptionHandling(exceptions -> exceptions
+						.defaultAuthenticationEntryPointFor(new BearerTokenAuthenticationEntryPoint(),
+								PathPatternRequestMatcher.withDefaults().matcher("/userinfo"))
+						.defaultAuthenticationEntryPointFor(
+								new LoginUrlAuthenticationEntryPoint("/login"),
+								new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
 		return http.build();
 	}
 
@@ -77,6 +86,8 @@ public class AuthorizationServerConfiguration {
 				.redirectUri(properties.issuer() + "/scalar")
 				.scope(ApiScopes.READ)
 				.scope(ApiScopes.WRITE)
+				.scope(OidcScopes.OPENID)
+				.scope(OidcScopes.PROFILE)
 				.clientSettings(ClientSettings.builder().requireProofKey(true).build())
 				.tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofMinutes(15)).build())
 				.build();
@@ -119,9 +130,13 @@ public class AuthorizationServerConfiguration {
 	@Bean
 	OAuth2TokenCustomizer<JwtEncodingContext> userSubjectCustomizer(UserRepository users) {
 		return context -> {
-			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+			boolean idToken = OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue());
+			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) || idToken) {
 				User user = users.findByUsername(context.getPrincipal().getName()).orElseThrow();
 				context.getClaims().subject(user.getId().toString());
+				if (idToken && context.getAuthorizedScopes().contains(OidcScopes.PROFILE)) {
+					context.getClaims().claim("name", user.getDisplayName());
+				}
 			}
 		};
 	}

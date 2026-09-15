@@ -230,10 +230,14 @@ class SecurityIntegrationTests {
 				.andExpect(jsonPath("$.expires_in").isNumber())
 				.andReturn().getResponse().getContentAsString();
 		JsonNode tokens = objectMapper.readTree(body);
+		assertThat(tokens.has("id_token")).isFalse();
+		assertThat(tokens.has("refresh_token")).isFalse();
 		String token = tokens.get("access_token").asText();
 		assertThat(jwtDecoder.decode(token).getSubject())
 				.isEqualTo(users.findByUsername("demo").orElseThrow().getId().toString());
 		assertThat(jwtDecoder.decode(token).getClaims()).doesNotContainKeys("password", "passwordHash");
+		mvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+				.andExpect(status().isForbidden());
 
 		mvc.perform(get("/api/diagnostics/errors/409").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
 				.andExpect(status().isConflict())
@@ -275,6 +279,82 @@ class SecurityIntegrationTests {
 	}
 
 	@Test
+	void publishesOidcDiscoveryForBrowserClients() throws Exception {
+		mvc.perform(get("/.well-known/openid-configuration")
+				.header(HttpHeaders.ORIGIN, "http://localhost:4200"))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+				.andExpect(jsonPath("$.issuer").value(ISSUER))
+				.andExpect(jsonPath("$.authorization_endpoint").value(ISSUER + "/oauth2/authorize"))
+				.andExpect(jsonPath("$.token_endpoint").value(ISSUER + "/oauth2/token"))
+				.andExpect(jsonPath("$.jwks_uri").value(ISSUER + "/oauth2/jwks"))
+				.andExpect(jsonPath("$.userinfo_endpoint").value(ISSUER + "/userinfo"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"/.well-known/openid-configuration", "/.well-known/oauth-authorization-server",
+			"/oauth2/jwks", "/oauth2/token", "/userinfo"})
+	void protocolCorsAllowsConfiguredOriginAndRejectsOtherOrigins(String path) throws Exception {
+		String method = path.equals("/oauth2/token") ? "POST" : "GET";
+		mvc.perform(options(path).header(HttpHeaders.ORIGIN, "http://localhost:4200")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method)
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type"))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"));
+		mvc.perform(options(path).header(HttpHeaders.ORIGIN, "https://untrusted.example")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method))
+				.andExpect(status().isForbidden())
+				.andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"openid api.read", "openid profile api.read"})
+	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String scopes) throws Exception {
+		JsonNode tokens = objectMapper.readTree(exchange(authorize(scopes), VERIFIER)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id_token").isString())
+				.andExpect(jsonPath("$.refresh_token").doesNotExist())
+				.andReturn().getResponse().getContentAsString());
+		String accessToken = tokens.get("access_token").asText();
+		String idTokenValue = tokens.get("id_token").asText();
+		var idToken = jwtDecoder.decode(idTokenValue);
+		User user = users.findByUsername("demo").orElseThrow();
+		assertThat(idToken.getSubject()).isEqualTo(user.getId().toString());
+		assertThat(idToken.getSubject()).isEqualTo(jwtDecoder.decode(accessToken).getSubject());
+		assertThat(idToken.getIssuer().toString()).isEqualTo(ISSUER);
+		assertThat(idToken.getAudience()).containsExactly("scalar");
+		assertThat(idToken.getClaimAsString("nonce")).isEqualTo("test-nonce");
+		assertThat(idToken.getExpiresAt()).isAfter(Instant.now());
+		assertThat(idToken.getClaims()).doesNotContainKeys("password", "passwordHash", "scope");
+		JsonNode userInfo = objectMapper.readTree(mvc.perform(get("/userinfo")
+				.header(HttpHeaders.ORIGIN, "http://localhost:4200")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+				.andExpect(jsonPath("$.sub").value(user.getId().toString()))
+				.andReturn().getResponse().getContentAsString());
+		if (scopes.contains("profile")) {
+			assertThat(idToken.getClaimAsString("name")).isEqualTo(user.getDisplayName());
+			assertThat(userInfo.get("name").asText()).isEqualTo(user.getDisplayName());
+			assertThat(userInfo.size()).isEqualTo(2);
+		} else {
+			assertThat(idToken.getClaims()).doesNotContainKey("name");
+			assertThat(userInfo.size()).isEqualTo(1);
+		}
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+				.andExpect(status().isOk());
+		mvc.perform(get("/api/events").header(HttpHeaders.AUTHORIZATION, "Bearer " + idTokenValue))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void userInfoRequiresBearerAuthentication() throws Exception {
+		mvc.perform(get("/userinfo")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void publishesOnlyPublicSigningKeyMaterial() throws Exception {
 		String body = mvc.perform(get("/oauth2/jwks"))
 				.andExpect(status().isOk())
@@ -291,14 +371,21 @@ class SecurityIntegrationTests {
 	}
 
 	private String authorize() throws Exception {
+		return authorize("api.read api.write");
+	}
+
+	private String authorize(String scopes) throws Exception {
 		String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
 				MessageDigest.getInstance("SHA-256").digest(VERIFIER.getBytes(StandardCharsets.US_ASCII)));
 		String redirect = mvc.perform(get("/oauth2/authorize").session(login())
 				.queryParam("client_id", "scalar").queryParam("response_type", "code")
-				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", "api.read api.write")
+				.queryParam("redirect_uri", REDIRECT_URI).queryParam("scope", scopes)
+				.queryParam("nonce", "test-nonce").queryParam("state", "test-state")
 				.queryParam("code_challenge", challenge).queryParam("code_challenge_method", "S256"))
 				.andExpect(status().isFound()).andReturn().getResponse().getRedirectedUrl();
-		String code = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams().getFirst("code");
+		var parameters = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams();
+		assertThat(parameters.getFirst("state")).isEqualTo("test-state");
+		String code = parameters.getFirst("code");
 		assertThat(code).isNotBlank();
 		return code;
 	}

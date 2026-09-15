@@ -189,15 +189,18 @@ bundle from `/scalar/scalar.js`.
 
 ## Authentication and authorization
 
-Spring Authorization Server issues signed JWT access tokens, and Spring Security's
-resource-server support validates them for `/api/**` requests.
+Spring Authorization Server supports OAuth2 and OpenID Connect (OIDC), issuing
+signed JWT access tokens and ID tokens. Spring Security's resource-server support
+validates access tokens for `/api/**` requests.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `/oauth2/authorize` | OAuth2 authorization-code flow |
-| `/oauth2/token` | Exchange an authorization code and PKCE verifier for an access token |
+| `/oauth2/token` | Exchange an authorization code and PKCE verifier for tokens |
 | `/oauth2/jwks` | Public signing keys |
 | `/.well-known/oauth-authorization-server` | Authorization-server metadata |
+| `/.well-known/openid-configuration` | OIDC discovery document |
+| `/userinfo` | OIDC subject and scope-authorized profile claims; requires an access token |
 | `/login` | Spring's demo-user sign-in form |
 
 These protocol endpoints are supplied by Spring Security filters. In Scalar they
@@ -207,6 +210,18 @@ controller definitions.
 The `scalar` client is public and requires authorization code + PKCE (SHA-256).
 It has no client secret. Access tokens last 15 minutes; refresh tokens and the
 password/client-credentials grants are not configured.
+
+Request `openid` alongside the API scopes to receive an ID token. Add `profile`
+to include the user's display name in the standard `name` claim. Both access and
+ID tokens use the persisted user UUID as `sub`; ID tokens also identify the
+client in `aud` and return the authorization request's `nonce` when supplied.
+Use the access token for API calls, not the ID token.
+
+Spring's default UserInfo implementation returns `sub` and, when `profile` was
+authorized, `name`, derived from the ID token. Profile data reflects token issuance
+time. Credentials and password hashes are never included. OAuth-only requests
+without `openid` continue to work and do not receive an ID token or UserInfo access.
+The Angular client and its callback will be registered when the SPA is configured.
 
 - GET and HEAD requests under `/api/**` require `api.read`.
 - Mutating requests require `api.write`.
@@ -228,6 +243,10 @@ JWT validation checks the signature, issuer, and token lifetime.
    `arena-demo`.
 5. Scalar exchanges the authorization code and attaches the access token to
    requests made with **Test Request**.
+
+Optionally select `openid` and `profile` as well to exercise OIDC token issuance.
+Discovery and UserInfo are framework protocol endpoints rather than CRUD routes
+in the OpenAPI document.
 
 To exercise a real authorization failure, obtain a token with only `api.read`
 selected and send a POST to the validation endpoint; it returns `403`.
@@ -283,8 +302,11 @@ retain Spring Authorization Server's standard OAuth error payloads (such as
 
 ## CORS
 
-The policy applies to `/api/**`. By default it permits the Angular development
-origin `http://localhost:4200`. Set `CORS_ALLOWED_ORIGINS` to a comma-separated
+The shared security-filter CORS policy applies to `/api/**`, the OAuth/OIDC
+metadata documents, `/oauth2/jwks`, `/oauth2/token`, and `/userinfo`. This includes
+the protocol endpoints browser clients use for discovery and code exchange.
+By default it permits the Angular development origin `http://localhost:4200`.
+Set `CORS_ALLOWED_ORIGINS` to a comma-separated
 list of exact browser origins to override it, for example:
 
 ```sh
