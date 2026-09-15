@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.arena.backend.application.common.ResourceNotFoundException;
+import com.arena.backend.domain.booking.BookingRepository;
 import com.arena.backend.domain.common.InvalidInputException;
+import com.arena.backend.domain.common.StateConflictException;
 import com.arena.backend.domain.event.Event;
 import com.arena.backend.domain.event.EventRepository;
 import com.arena.backend.domain.event.EventStatus;
@@ -18,10 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class EventService {
 
 	private final EventRepository repository;
+	private final BookingRepository bookings;
 	private final Clock clock;
 
-	public EventService(EventRepository repository, Clock clock) {
+	public EventService(EventRepository repository, BookingRepository bookings, Clock clock) {
 		this.repository = repository;
+		this.bookings = bookings;
 		this.clock = clock;
 	}
 
@@ -47,21 +51,32 @@ public class EventService {
 	@Transactional
 	public Event update(UUID id, String title, String description, String sport, String location,
 			Instant startsAt, Instant endsAt, int capacity) {
-		Event event = findById(id);
+		Event event = findForUpdate(id);
 		event.updateDetails(title, description, sport, location, startsAt, endsAt, capacity);
+		if (capacity < bookings.countActiveByEventId(id)) {
+			throw new StateConflictException("Event capacity cannot be lower than its confirmed booking count.");
+		}
 		return repository.save(event);
 	}
 
 	@Transactional
 	public Event changeStatus(UUID id, EventStatus status) {
-		Event event = findById(id);
+		Event event = findForUpdate(id);
 		event.changeStatus(status);
 		return repository.save(event);
 	}
 
 	@Transactional
 	public void delete(UUID id) {
-		findById(id);
+		findForUpdate(id);
+		if (bookings.existsByEventId(id)) {
+			throw new StateConflictException("Events with booking records cannot be deleted. Cancel the event instead.");
+		}
 		repository.deleteById(id);
+	}
+
+	private Event findForUpdate(UUID id) {
+		return repository.findByIdForUpdate(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Event " + id + " was not found."));
 	}
 }

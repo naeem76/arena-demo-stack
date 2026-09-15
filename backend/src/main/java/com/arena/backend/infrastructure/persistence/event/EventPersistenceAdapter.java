@@ -30,6 +30,11 @@ public class EventPersistenceAdapter implements EventRepository {
 	}
 
 	@Override
+	public Optional<Event> findByIdForUpdate(UUID id) {
+		return repository.findByIdForUpdate(id);
+	}
+
+	@Override
 	public List<Event> findAll(String sport, EventStatus status) {
 		return repository.findAllFiltered(sport == null ? null : sport.toLowerCase(Locale.ROOT), status);
 	}

@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.arena.backend.application.common.ResourceNotFoundException;
+import com.arena.backend.domain.booking.BookingRepository;
 import com.arena.backend.domain.common.InvalidInputException;
 import com.arena.backend.domain.common.StateConflictException;
 import com.arena.backend.domain.event.Event;
@@ -40,11 +41,14 @@ class EventServiceTests {
 	@Mock
 	private EventRepository repository;
 
+	@Mock
+	private BookingRepository bookings;
+
 	private EventService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new EventService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+		service = new EventService(repository, bookings, Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
 	@Test
@@ -74,7 +78,7 @@ class EventServiceTests {
 	void updatesThroughTheExistingEntity() {
 		UUID id = UUID.randomUUID();
 		Event event = newEvent();
-		when(repository.findById(id)).thenReturn(Optional.of(event));
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(event));
 		when(repository.save(event)).thenReturn(event);
 		assertThat(service.update(id, "Tennis", null, "Tennis", "Court", START, END, 2)).isSameAs(event);
 		assertThat(event.getTitle()).isEqualTo("Tennis");
@@ -86,7 +90,7 @@ class EventServiceTests {
 		UUID id = UUID.randomUUID();
 		Event event = newEvent();
 		event.changeStatus(EventStatus.LIVE);
-		when(repository.findById(id)).thenReturn(Optional.of(event));
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(event));
 		assertThatThrownBy(() -> service.update(id, "Tennis", null, "Tennis", "Court", START, END, 2))
 				.isInstanceOf(StateConflictException.class);
 		verify(repository, never()).save(any());
@@ -96,7 +100,7 @@ class EventServiceTests {
 	void changesStatusThroughTheEntity() {
 		UUID id = UUID.randomUUID();
 		Event event = newEvent();
-		when(repository.findById(id)).thenReturn(Optional.of(event));
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(event));
 		when(repository.save(event)).thenReturn(event);
 		assertThat(service.changeStatus(id, EventStatus.LIVE).getStatus()).isEqualTo(EventStatus.LIVE);
 		verify(repository).save(event);
@@ -105,7 +109,7 @@ class EventServiceTests {
 	@Test
 	void deletesExistingEvent() {
 		UUID id = UUID.randomUUID();
-		when(repository.findById(id)).thenReturn(Optional.of(newEvent()));
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(newEvent()));
 		service.delete(id);
 		verify(repository).deleteById(id);
 	}
@@ -114,6 +118,25 @@ class EventServiceTests {
 	void doesNotSilentlyDeleteMissingEvent() {
 		UUID id = UUID.randomUUID();
 		assertThatThrownBy(() -> service.delete(id)).isInstanceOf(ResourceNotFoundException.class);
+		verify(repository, never()).deleteById(any());
+	}
+
+	@Test
+	void rejectsCapacityBelowActiveReservations() {
+		UUID id = UUID.randomUUID();
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(newEvent()));
+		when(bookings.countActiveByEventId(id)).thenReturn(3L);
+		assertThatThrownBy(() -> service.update(id, "Football", null, "Football", "Park", START, END, 2))
+				.isInstanceOf(StateConflictException.class);
+		verify(repository, never()).save(any());
+	}
+
+	@Test
+	void rejectsDeletionWhenBookingHistoryExists() {
+		UUID id = UUID.randomUUID();
+		when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(newEvent()));
+		when(bookings.existsByEventId(id)).thenReturn(true);
+		assertThatThrownBy(() -> service.delete(id)).isInstanceOf(StateConflictException.class);
 		verify(repository, never()).deleteById(any());
 	}
 

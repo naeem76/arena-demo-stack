@@ -10,6 +10,8 @@ public interface EventRepository {
 
 	Optional<Event> findById(UUID id);
 
+	Optional<Event> findByIdForUpdate(UUID id);
+
 	default List<Event> findAll() {
 		return findAll(null, null);
 	}

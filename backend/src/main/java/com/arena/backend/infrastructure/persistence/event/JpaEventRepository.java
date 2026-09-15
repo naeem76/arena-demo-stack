@@ -1,15 +1,22 @@
 package com.arena.backend.infrastructure.persistence.event;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.arena.backend.domain.event.Event;
 import com.arena.backend.domain.event.EventStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface JpaEventRepository extends JpaRepository<Event, UUID> {
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT event FROM Event event WHERE event.id = :id")
+	Optional<Event> findByIdForUpdate(@Param("id") UUID id);
 
 	@Query("""
 			SELECT event FROM Event event

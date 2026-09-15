@@ -6,10 +6,14 @@ See the [root README](../README.md) for build and startup instructions.
 
 - `api/`: HTTP controllers and centralized exception handling.
 - `api/event/`: Event request/response DTOs, mapping, and CRUD controller.
+- `api/booking/`: owner-scoped reservation endpoints and DTOs.
 - `application/event/`: transactional Event use cases and time-dependent creation validation.
+- `application/booking/`: transactional reservation, ownership, and capacity checks.
 - `domain/event/`: the Event model, status enum, and repository contract.
+- `domain/booking/`: the reservation model, status enum, and repository contract.
 - `domain/user/`: the account/profile model and repository contract.
 - `infrastructure/persistence/event/`: Spring Data JPA repository and its adapter.
+- `infrastructure/persistence/booking/`: Spring Data queries, event fetching, and reservation counts.
 - `infrastructure/persistence/user/`: Spring Data JPA account lookup and its adapter.
 - `configuration/`: OpenAPI, CORS, authorization-server, and security configuration.
 - `security/`: API scopes and security-filter Problem Details responses.
@@ -67,9 +71,56 @@ filters use the enum names. Lists are ordered by start time and then ID.
 - Missing resources return `404`, invalid input returns `400`, and disallowed
   edits/transitions return `409`. Rejected changes leave stored data unchanged.
 
-Deletion currently removes an existing event. The restriction on deleting events
-with booking records, and capacity checks against active reservations, will be
-implemented with the Booking relationship.
+Events with any booking records cannot be deleted, including when all bookings
+are cancelled. Cancel the event instead. Capacity cannot be reduced below the
+confirmed booking count. Event edits, status changes, and deletion lock the same
+event row used by reservation transactions.
+
+## Booking API
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/api/bookings` | List the signed-in user's complete booking history, newest first |
+| GET | `/api/bookings/{id}` | Read an owned booking |
+| POST | `/api/bookings` | Reserve one place; returns `201` and `Location` |
+| POST | `/api/bookings/{id}/cancel` | Cancel an owned booking; returns `200` |
+
+Creation accepts `{"eventId":"<event-uuid>"}`. The owner is taken from the JWT
+subject; no user ID or status is accepted as an input field. Reads require
+`api.read` and mutations require `api.write`. Missing bookings and bookings owned
+by another user both return `404`.
+
+### Reservation rules and availability
+
+- Booking is allowed only while the event is `SCHEDULED` and its start time is
+  still in the future.
+- Each booking reserves one place. Availability is calculated from
+  `event.capacity - confirmed booking count`; there is no separate stored counter.
+- A user can have only one `CONFIRMED` booking per event. Duplicate active
+  reservations and full events return `409`.
+- Cancellation is allowed before the scheduled start time unless the event has
+  already become `LIVE` or `COMPLETED`. Repeated cancellation succeeds without
+  creating another row or changing the original cancellation result.
+- Rebooking always creates a **new row and UUID**. The previous cancelled row
+  remains in history and does not consume capacity.
+- Responses include current Event details. Cancelling an event leaves reservation
+  rows intact; clients can see `event.status = CANCELLED` alongside booking status.
+
+### Persistence and concurrency
+
+[V3__create_bookings.sql](src/main/resources/db/migration/V3__create_bookings.sql)
+adds Event/User foreign keys, audit timestamps, and a partial unique index on
+`(event_id, user_id)` for `CONFIRMED` rows only. Foreign keys prevent deleting
+parents with reservation history.
+
+Creation and cancellation acquire a Spring Data JPA `PESSIMISTIC_WRITE` lock on
+the event row before checking current state and capacity. Event mutations follow
+the same lock order, keeping capacity reductions, status changes, and deletion
+consistent with concurrent reservations. Cancellation initially reads only the
+owned booking's event ID, then reloads the booking after obtaining the lock.
+
+Tests use concurrent transactions against PostgreSQL to exercise last-place
+reservations, duplicate requests, capacity reductions, and repeated cancellations.
 
 ## Event persistence
 
