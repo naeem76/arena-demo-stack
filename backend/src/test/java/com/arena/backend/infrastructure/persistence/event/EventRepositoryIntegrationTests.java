@@ -71,7 +71,7 @@ class EventRepositoryIntegrationTests {
 		entityManager.clear();
 		event.updateDetails("Evening football", null, "Football", "Central Park",
 				START.plusSeconds(7200), END.plusSeconds(7200), 24);
-		event.setStatus(EventStatus.LIVE);
+		event.changeStatus(EventStatus.LIVE);
 
 		Event updated = saveAndReload(event);
 
@@ -115,7 +115,10 @@ class EventRepositoryIntegrationTests {
 	@EnumSource(EventStatus.class)
 	void storesStatusByName(EventStatus status) {
 		Event event = newEvent("Community football");
-		event.setStatus(status);
+		if (status == EventStatus.COMPLETED) {
+			event.changeStatus(EventStatus.LIVE);
+		}
+		event.changeStatus(status);
 		Event stored = saveAndReload(event);
 
 		assertThat(stored.getStatus()).isEqualTo(status);
@@ -127,7 +130,8 @@ class EventRepositoryIntegrationTests {
 	void acceptsHistoricalEventsAndNewSportsWithoutSchemaChanges() {
 		Event historical = new Event("Community ultimate", null, "Ultimate", "Riverside Park",
 				Instant.parse("2020-01-01T10:00:00Z"), Instant.parse("2020-01-01T11:00:00Z"), 14);
-		historical.setStatus(EventStatus.COMPLETED);
+		historical.changeStatus(EventStatus.LIVE);
+		historical.changeStatus(EventStatus.COMPLETED);
 
 		Event stored = saveAndReload(historical);
 
@@ -138,7 +142,7 @@ class EventRepositoryIntegrationTests {
 
 	@Test
 	void validatesEntityBeforePersistence() {
-		Event invalid = new Event(" ", null, "Football", "Park", START, END, 0);
+		Event invalid = new Event(" ", null, "Football", "Park", START, END, 1);
 
 		assertThatThrownBy(() -> {
 			repository.save(invalid);
@@ -154,6 +158,26 @@ class EventRepositoryIntegrationTests {
 		// Column names come only from the fixed test cases below; values are bound parameters.
 		assertThatThrownBy(() -> jdbc.update("UPDATE events SET " + column + " = ? WHERE id = ?",
 				value, stored.getId())).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void filtersBySportAndStatusAndOrdersByStartTime() {
+		Event scheduled = saveAndReload(newEvent("Scheduled football"));
+		Event live = new Event("Live football", null, "Football", "Park", END, END.plusSeconds(3600), 20);
+		live.changeStatus(EventStatus.LIVE);
+		live = saveAndReload(live);
+		Event basketball = saveAndReload(new Event("Basketball", null, "Basketball", "Court",
+				START.minusSeconds(7200), START.minusSeconds(3600), 10));
+
+		assertThat(repository.findAll()).extracting(Event::getId)
+				.containsExactly(basketball.getId(), scheduled.getId(), live.getId());
+		assertThat(repository.findAll("fOoTbAlL", null)).extracting(Event::getId)
+				.containsExactly(scheduled.getId(), live.getId());
+		assertThat(repository.findAll(null, EventStatus.LIVE)).extracting(Event::getId)
+				.containsExactly(live.getId());
+		assertThat(repository.findAll("Football", EventStatus.SCHEDULED)).extracting(Event::getId)
+				.containsExactly(scheduled.getId());
+		assertThat(repository.findAll("Tennis", null)).isEmpty();
 	}
 
 	@Test

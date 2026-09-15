@@ -4,7 +4,7 @@ This repository contains the Arena full-stack developer assessment. The project
 will include a Spring Boot backend, an Angular web application, and a Flutter
 mobile application.
 
-The backend foundation, Event/User persistence, and database-backed login are
+The backend Event CRUD API, Event/User persistence, and database-backed login are
 implemented. This README will be updated as the implementation progresses.
 
 ## Run locally
@@ -68,7 +68,8 @@ Build and verify from `backend/` with Docker running:
 
 Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
 and PKCE exchanges, JWT validation, scope enforcement, password storage, account
-login, Event/User persistence and schema constraints, and application startup
+login, Event business rules and CRUD contracts, persistence and schema constraints,
+and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.
@@ -76,6 +77,7 @@ verification command above separately.
 See [backend API foundation](backend/README.md) for Scalar sign-in instructions,
 error conventions, CORS configuration, and the opt-in diagnostic controller.
 
-Event persistence is implemented; event API endpoints will follow. Flyway applies
+The authenticated Event API is available at `/api/events` and documented in Scalar.
+Flyway applies
 versioned migrations from `backend/src/main/resources/db/migration` at startup.
 Hibernate validates the schema rather than creating or updating it.

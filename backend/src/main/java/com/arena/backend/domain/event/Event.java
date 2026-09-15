@@ -3,6 +3,8 @@ package com.arena.backend.domain.event;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.arena.backend.domain.common.InvalidInputException;
+import com.arena.backend.domain.common.StateConflictException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -25,28 +27,33 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @EntityListeners(AuditingEntityListener.class)
 public class Event {
 
+	public static final int MAX_TITLE_LENGTH = 150;
+	public static final int MAX_DESCRIPTION_LENGTH = 2000;
+	public static final int MAX_SPORT_LENGTH = 50;
+	public static final int MAX_LOCATION_LENGTH = 200;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	@Column(nullable = false, updatable = false)
 	private UUID id;
 
 	@NotBlank
-	@Size(max = 150)
-	@Column(nullable = false, length = 150)
+	@Size(max = MAX_TITLE_LENGTH)
+	@Column(nullable = false, length = MAX_TITLE_LENGTH)
 	private String title;
 
-	@Size(max = 2000)
-	@Column(length = 2000)
+	@Size(max = MAX_DESCRIPTION_LENGTH)
+	@Column(length = MAX_DESCRIPTION_LENGTH)
 	private String description;
 
 	@NotBlank
-	@Size(max = 50)
-	@Column(nullable = false, length = 50)
+	@Size(max = MAX_SPORT_LENGTH)
+	@Column(nullable = false, length = MAX_SPORT_LENGTH)
 	private String sport;
 
 	@NotBlank
-	@Size(max = 200)
-	@Column(nullable = false, length = 200)
+	@Size(max = MAX_LOCATION_LENGTH)
+	@Column(nullable = false, length = MAX_LOCATION_LENGTH)
 	private String location;
 
 	@NotNull
@@ -84,6 +91,15 @@ public class Event {
 
 	public void updateDetails(String title, String description, String sport, String location,
 			Instant startsAt, Instant endsAt, int capacity) {
+		if (status != EventStatus.SCHEDULED) {
+			throw new StateConflictException("Only scheduled events can have their details edited.");
+		}
+		if (startsAt == null || endsAt == null || !endsAt.isAfter(startsAt)) {
+			throw new InvalidInputException("Event end time must be after its start time.");
+		}
+		if (capacity < 1) {
+			throw new InvalidInputException("Event capacity must be greater than zero.");
+		}
 		this.title = title;
 		this.description = description;
 		this.sport = sport;
@@ -93,8 +109,22 @@ public class Event {
 		this.capacity = capacity;
 	}
 
-	public void setStatus(EventStatus status) {
-		this.status = status;
+	public void changeStatus(EventStatus nextStatus) {
+		if (nextStatus == null) {
+			throw new InvalidInputException("Event status is required.");
+		}
+		if (status == nextStatus) {
+			return;
+		}
+		boolean allowed = switch (status) {
+			case SCHEDULED -> nextStatus == EventStatus.LIVE || nextStatus == EventStatus.CANCELLED;
+			case LIVE -> nextStatus == EventStatus.COMPLETED || nextStatus == EventStatus.CANCELLED;
+			case COMPLETED, CANCELLED -> false;
+		};
+		if (!allowed) {
+			throw new StateConflictException("Event cannot change from " + status + " to " + nextStatus + ".");
+		}
+		status = nextStatus;
 	}
 
 	public UUID getId() {

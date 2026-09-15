@@ -5,6 +5,8 @@ See the [root README](../README.md) for build and startup instructions.
 ## Structure
 
 - `api/`: HTTP controllers and centralized exception handling.
+- `api/event/`: Event request/response DTOs, mapping, and CRUD controller.
+- `application/event/`: transactional Event use cases and time-dependent creation validation.
 - `domain/event/`: the Event model, status enum, and repository contract.
 - `domain/user/`: the account/profile model and repository contract.
 - `infrastructure/persistence/event/`: Spring Data JPA repository and its adapter.
@@ -13,8 +15,61 @@ See the [root README](../README.md) for build and startup instructions.
 - `security/`: API scopes and security-filter Problem Details responses.
 - `api/diagnostics/`: diagnostic endpoints enabled only by the `diagnostics` profile.
 
-The backend is a single Maven project. Application-service and API DTO types will
-be introduced with the event use cases and endpoints.
+The backend is a single Maven project. Controllers use application services, which
+coordinate repository operations and invoke entity business methods. Shared
+invalid-input, state-conflict, and not-found exceptions are mapped centrally to
+Problem Details responses.
+
+## Event API
+
+All endpoints require a bearer token. GET requests use `api.read`; mutations use
+`api.write`.
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/api/events` | List events; optional `sport` and `status` filters |
+| GET | `/api/events/{id}` | Read one event |
+| POST | `/api/events` | Create; returns `201` and a `Location` header |
+| PUT | `/api/events/{id}` | Replace editable details; returns `200` |
+| PATCH | `/api/events/{id}/status` | Change lifecycle status; returns `200` |
+| DELETE | `/api/events/{id}` | Delete; returns bodyless `204` |
+
+POST and PUT share the same request fields. The server manages the ID, audit
+timestamps, and initial `SCHEDULED` status:
+
+```json
+{
+  "title": "Community football",
+  "description": "A friendly local match",
+  "sport": "Football",
+  "location": "Riverside Park",
+  "startsAt": "2030-01-01T10:00:00Z",
+  "endsAt": "2030-01-01T11:00:00Z",
+  "capacity": 20
+}
+```
+
+Use future dates when creating an event. Times are ISO-8601 instants; `description`
+is optional. Status changes use a separate body, for example `{"status":"LIVE"}`.
+Sport filtering is case-insensitive and ignores surrounding whitespace. Status
+filters use the enum names. Lists are ordered by start time and then ID.
+
+### Business rules
+
+- New events must start in the future, checked using an injected `Clock`.
+- Only `SCHEDULED` events allow detail edits. Capacity must remain positive and
+  the end time must be after the start time.
+- Allowed transitions: `SCHEDULED → LIVE`, `SCHEDULED → CANCELLED`,
+  `LIVE → COMPLETED`, and `LIVE → CANCELLED`.
+- `COMPLETED` and `CANCELLED` are terminal states. Repeating the current status
+  succeeds without changing it, so status updates are idempotent.
+- Transitions are manual, not driven by a scheduler or restricted to the scheduled start time.
+- Missing resources return `404`, invalid input returns `400`, and disallowed
+  edits/transitions return `409`. Rejected changes leave stored data unchanged.
+
+Deletion currently removes an existing event. The restriction on deleting events
+with booking records, and capacity checks against active reservations, will be
+implemented with the Booking relationship.
 
 ## Event persistence
 
@@ -45,9 +100,9 @@ should not be edited. Historical event times are valid persisted data.
 keeping Spring Data-specific operations inside infrastructure. Entity fields are
 validated on persistence, and database constraints also protect direct SQL writes.
 
-PostgreSQL-backed tests verify CRUD, UUID generation, audit timestamps, status
-mapping, and schema constraints. Event lifecycle transition policies, booking
-rules, and event HTTP endpoints will be added with their use cases.
+PostgreSQL-backed tests verify CRUD, filtering, UUID generation, audit timestamps,
+status mapping, schema constraints, and HTTP contracts. Unit tests verify the
+entity's lifecycle rules and the service's time-dependent creation rules.
 
 ## User persistence
 

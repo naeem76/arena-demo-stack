@@ -3,6 +3,9 @@ package com.arena.backend.api;
 import java.util.Comparator;
 import java.util.List;
 
+import com.arena.backend.application.common.ResourceNotFoundException;
+import com.arena.backend.domain.common.InvalidInputException;
+import com.arena.backend.domain.common.StateConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
@@ -59,6 +62,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(status,
 				"A request parameter has an invalid type.");
 		return handleExceptionInternal(ex, problem, headers, status, request);
+	}
+
+	@ExceptionHandler({ResourceNotFoundException.class, StateConflictException.class, InvalidInputException.class})
+	ResponseEntity<Object> handleBusinessException(RuntimeException ex, WebRequest request) {
+		HttpStatus status = switch (ex) {
+			case ResourceNotFoundException ignored -> HttpStatus.NOT_FOUND;
+			case StateConflictException ignored -> HttpStatus.CONFLICT;
+			default -> HttpStatus.BAD_REQUEST;
+		};
+		return handleExceptionInternal(ex, ProblemDetail.forStatusAndDetail(status, ex.getMessage()),
+				new HttpHeaders(), status, request);
 	}
 
 	@ExceptionHandler(Exception.class)

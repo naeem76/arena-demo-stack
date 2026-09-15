@@ -10,7 +10,11 @@ public interface EventRepository {
 
 	Optional<Event> findById(UUID id);
 
-	List<Event> findAll();
+	default List<Event> findAll() {
+		return findAll(null, null);
+	}
+
+	List<Event> findAll(String sport, EventStatus status);
 
 	void deleteById(UUID id);
 }
