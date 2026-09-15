@@ -4,30 +4,43 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.stream.Stream;
 
+import com.arena.backend.configuration.SecurityProperties;
+import com.arena.backend.domain.user.User;
+import com.arena.backend.domain.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.security.web.WebAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,6 +73,61 @@ class SecurityIntegrationTests {
 
 	@Autowired
 	private JwtEncoder jwtEncoder;
+
+	@Autowired
+	private JwtDecoder jwtDecoder;
+
+	@Autowired
+	private UserRepository users;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@Autowired
+	private SecurityProperties securityProperties;
+
+	@Autowired
+	@Qualifier("demoUserInitializer")
+	private ApplicationRunner demoUserInitializer;
+
+	@Test
+	void demoPasswordIsHashedAndNotResetByInitialization() throws Exception {
+		User user = users.findByUsername("demo").orElseThrow();
+		String hash = user.getPasswordHash();
+		assertThat(hash).startsWith("$2a$12$").isNotEqualTo("arena-demo");
+		assertThat(passwordEncoder.matches("arena-demo", hash)).isTrue();
+		String anotherHash = passwordEncoder.encode("arena-demo");
+		assertThat(anotherHash).isNotEqualTo(hash);
+		assertThat(passwordEncoder.matches("arena-demo", anotherHash)).isTrue();
+
+		demoUserInitializer.run(new DefaultApplicationArguments());
+		assertThat(users.findByUsername("demo").orElseThrow().getPasswordHash()).isEqualTo(hash);
+		assertThat(objectMapper.valueToTree(user).has("passwordHash")).isFalse();
+		assertThat(securityProperties.toString()).doesNotContain("arena-demo");
+	}
+
+	@ParameterizedTest
+	@MethodSource("maximumLengthPasswords")
+	void frameworkRejectsPasswordsExceedingBcryptByteLimit(String password) {
+		String hash = passwordEncoder.encode(password);
+		assertThat(passwordEncoder.matches(password, hash)).isTrue();
+		assertThatThrownBy(() -> passwordEncoder.encode(password + "x"))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@ParameterizedTest
+	@MethodSource("maximumLengthPasswords")
+	void loginDoesNotAcceptPasswordSuffixBeyondBcryptLimit(String password) throws Exception {
+		String username = "long-password-" + password.charAt(0);
+		users.save(new User(username, "Long password user", passwordEncoder.encode(password)));
+		mvc.perform(post("/login").with(csrf()).param("username", username).param("password", password))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "/"));
+		mvc.perform(post("/login").with(csrf()).param("username", username)
+				.param("password", password + "x"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "/login?error"));
+	}
 
 	@Test
 	void browserPreflightDoesNotRequireBearerToken() throws Exception {
@@ -136,11 +204,21 @@ class SecurityIntegrationTests {
 				.andExpect(status().isForbidden());
 	}
 
-	@Test
-	void rejectsIncorrectLoginPassword() throws Exception {
-		mvc.perform(post("/login").with(csrf()).param("username", "demo").param("password", "wrong"))
+	@ParameterizedTest
+	@ValueSource(strings = {"demo", "missing-user", "disabled-user"})
+	void rejectsInvalidOrDisabledAccountsWithTheSamePublicMessage(String username) throws Exception {
+		if (username.equals("disabled-user")) {
+			User disabled = new User(username, "Disabled user", passwordEncoder.encode("wrong"));
+			disabled.setEnabled(false);
+			users.save(disabled);
+		}
+		MockHttpSession session = (MockHttpSession) mvc.perform(post("/login").with(csrf())
+				.param("username", username).param("password", "wrong"))
 				.andExpect(status().isFound())
-				.andExpect(header().string(HttpHeaders.LOCATION, "/login?error"));
+				.andExpect(header().string(HttpHeaders.LOCATION, "/login?error"))
+				.andReturn().getRequest().getSession(false);
+		AuthenticationException error = (AuthenticationException) session.getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
+		assertThat(error.getMessage()).isEqualTo("Invalid username or password.");
 	}
 
 	@Test
@@ -153,6 +231,9 @@ class SecurityIntegrationTests {
 				.andReturn().getResponse().getContentAsString();
 		JsonNode tokens = objectMapper.readTree(body);
 		String token = tokens.get("access_token").asText();
+		assertThat(jwtDecoder.decode(token).getSubject())
+				.isEqualTo(users.findByUsername("demo").orElseThrow().getId().toString());
+		assertThat(jwtDecoder.decode(token).getClaims()).doesNotContainKeys("password", "passwordHash");
 
 		mvc.perform(get("/api/diagnostics/errors/409").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
 				.andExpect(status().isConflict())
@@ -233,5 +314,9 @@ class SecurityIntegrationTests {
 				.issuedAt(expiresAt.minusSeconds(600)).expiresAt(expiresAt).claim("scope", scope).build();
 		return jwtEncoder.encode(JwtEncoderParameters.from(
 				JwsHeader.with(SignatureAlgorithm.RS256).build(), claims)).getTokenValue();
+	}
+
+	static Stream<String> maximumLengthPasswords() {
+		return Stream.of("a".repeat(72), "é".repeat(36));
 	}
 }

@@ -4,8 +4,8 @@ This repository contains the Arena full-stack developer assessment. The project
 will include a Spring Boot backend, an Angular web application, and a Flutter
 mobile application.
 
-The backend foundation, PostgreSQL development environment, and Event persistence
-are currently implemented. This README will be updated as the implementation progresses.
+The backend foundation, Event/User persistence, and database-backed login are
+implemented. This README will be updated as the implementation progresses.
 
 ## Run locally
 
@@ -67,8 +67,8 @@ Build and verify from `backend/` with Docker running:
 ```
 
 Tests cover API errors, validation, CORS, documentation, OAuth authorization-code
-and PKCE exchanges, JWT validation, scope enforcement, Event persistence and schema
-constraints, and application startup
+and PKCE exchanges, JWT validation, scope enforcement, password storage, account
+login, Event/User persistence and schema constraints, and application startup
 against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.

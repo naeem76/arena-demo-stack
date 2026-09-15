@@ -8,6 +8,8 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.util.UUID;
 
+import com.arena.backend.domain.user.User;
+import com.arena.backend.domain.user.UserRepository;
 import com.arena.backend.security.ApiScopes;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -15,15 +17,17 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -32,6 +36,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -39,7 +44,8 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -84,15 +90,40 @@ public class AuthorizationServerConfiguration {
 
 	@Bean
 	PasswordEncoder passwordEncoder() {
-		return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+		return new BCryptPasswordEncoder(12);
 	}
 
 	@Bean
-	UserDetailsService demoUsers(SecurityProperties properties, PasswordEncoder passwordEncoder) {
-		return new InMemoryUserDetailsManager(User.withUsername(properties.demoUsername())
-				.password(passwordEncoder.encode(properties.demoPassword()))
-				.roles("USER")
-				.build());
+	UserDetailsService userDetailsService(UserRepository users) {
+		return username -> users.findByUsername(username)
+				.map(user -> org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
+						.password(user.getPasswordHash())
+						.disabled(!user.isEnabled())
+						.roles("USER")
+						.build())
+				.orElseThrow(() -> new UsernameNotFoundException("Invalid username or password."));
+	}
+
+	@Bean
+	@ConditionalOnProperty(name = "app.security.seed-demo-user", havingValue = "true")
+	ApplicationRunner demoUserInitializer(SecurityProperties properties, UserRepository users,
+			PasswordEncoder passwordEncoder) {
+		return args -> {
+			if (users.findByUsername(properties.demoUsername()).isEmpty()) {
+				users.save(new User(properties.demoUsername(), "Demo User",
+						passwordEncoder.encode(properties.demoPassword())));
+			}
+		};
+	}
+
+	@Bean
+	OAuth2TokenCustomizer<JwtEncodingContext> userSubjectCustomizer(UserRepository users) {
+		return context -> {
+			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+				User user = users.findByUsername(context.getPrincipal().getName()).orElseThrow();
+				context.getClaims().subject(user.getId().toString());
+			}
+		};
 	}
 
 	@Bean

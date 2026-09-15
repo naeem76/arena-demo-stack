@@ -6,7 +6,9 @@ See the [root README](../README.md) for build and startup instructions.
 
 - `api/`: HTTP controllers and centralized exception handling.
 - `domain/event/`: the Event model, status enum, and repository contract.
+- `domain/user/`: the account/profile model and repository contract.
 - `infrastructure/persistence/event/`: Spring Data JPA repository and its adapter.
+- `infrastructure/persistence/user/`: Spring Data JPA account lookup and its adapter.
 - `configuration/`: OpenAPI, CORS, authorization-server, and security configuration.
 - `security/`: API scopes and security-filter Problem Details responses.
 - `api/diagnostics/`: diagnostic endpoints enabled only by the `diagnostics` profile.
@@ -46,6 +48,28 @@ validated on persistence, and database constraints also protect direct SQL write
 PostgreSQL-backed tests verify CRUD, UUID generation, audit timestamps, status
 mapping, and schema constraints. Event lifecycle transition policies, booking
 rules, and event HTTP endpoints will be added with their use cases.
+
+## User persistence
+
+`User` stores a UUID, username (up to 50 characters), display name (up to 100
+characters), password hash, enabled flag, and audit timestamps. Usernames are
+unique and looked up case-insensitively. The schema is defined in
+[V2__create_users.sql](src/main/resources/db/migration/V2__create_users.sql).
+
+Spring's `UserDetailsService` loads accounts through `UserRepository` and returns
+the framework's standard `UserDetails`. Password hashing and verification use
+Spring's `BCryptPasswordEncoder` at cost 12 with a fresh random salt per hash.
+Raw passwords are never stored in PostgreSQL. The database enforces BCrypt hash
+format, and the entity's password hash is excluded from JSON serialization.
+
+Passwords exceeding 72 UTF-8 bytes are rejected at creation and login, preventing
+BCrypt suffix truncation. Incorrect credentials and disabled accounts receive the
+same public login failure message. The JWT `sub` claim contains the persisted
+user UUID; the username remains the login identifier.
+
+Disabling an account prevents new password logins. Previously issued JWTs retain
+their normal lifetime. User registration and profile-management endpoints are
+not part of this persistence step.
 
 ## API documentation
 
@@ -110,13 +134,16 @@ selected and send a POST to the validation endpoint; it returns `403`.
 callback is `${AUTH_ISSUER_URI}/scalar`.
 
 For a local Java process on a different port, set `AUTH_ISSUER_URI` to the matching
-external URL. `DEMO_USERNAME` and `DEMO_PASSWORD` override the demo credentials.
+external URL. On first startup, `DEMO_USERNAME` and `DEMO_PASSWORD` supply the demo
+account credentials. The initializer creates that account only if its username
+is absent; it never overwrites an existing password, profile, or enabled flag.
+Changing these environment variables does not reset an existing account.
+Set `SEED_DEMO_USER=false` to disable initialization (`app.security.seed-demo-user`).
 
-This assessment setup stores the demo user, client registration, and authorization
-state in memory. A new RSA signing key is generated at startup. Restarting the
-backend invalidates previously issued tokens; authorize again in Scalar. Private
-keys and tokens are not stored in the repository. This is a local demonstration
-setup, not a persistent identity-management system.
+User accounts and password hashes persist in PostgreSQL. OAuth client registration
+and authorization state remain in memory, and a new RSA signing key is generated
+at startup. Restarting the backend invalidates previously issued tokens; authorize
+again in Scalar. Private keys and tokens are not stored in the repository.
 
 ## Error responses
 
