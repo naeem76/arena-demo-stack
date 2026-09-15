@@ -1,0 +1,135 @@
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1 class="page-title">Bookings</h1>
+    <p class="page-subtitle">Review participant reservations and their booking history.</p>
+  </div>
+  <button class="btn btn-outline" type="button" (click)="refresh()" [disabled]="loading()">
+    Refresh
+  </button>
+</header>
+
+<section class="panel" aria-label="Booking filters">
+  <div class="toolbar">
+    <label for="booking-event">Event</label>
+    <select
+      id="booking-event"
+      class="select"
+      [value]="eventId()"
+      (change)="setFilter('eventId', $any($event.target).value)"
+    >
+      <option value="">All events</option>
+      @if (eventId() && !hasSelectedEvent()) {
+        <option [value]="eventId()">Selected event · {{ eventId() }}</option>
+      }
+      @for (event of events(); track event.id) {
+        <option [value]="event.id">{{ event.title }}</option>
+      }
+    </select>
+    <label for="booking-status">Booking status</label>
+    <select
+      id="booking-status"
+      class="select"
+      [value]="status()"
+      (change)="setFilter('status', $any($event.target).value)"
+    >
+      <option value="">All statuses</option>
+      <option value="CONFIRMED">Confirmed</option>
+      <option value="CANCELLED">Cancelled</option>
+    </select>
+    @if (eventId() || status()) {
+      <button class="btn btn-outline btn-sm" type="button" (click)="clearFilters()">
+        Clear filters
+      </button>
+    }
+  </div>
+  @if (eventsLoading()) {
+    <p class="muted" role="status">Loading event options…</p>
+  }
+  @if (eventsError()) {
+    <app-page-feedback
+      kind="error"
+      title="Event options could not be loaded"
+      [message]="eventsError()"
+      (retry)="retryEvents()"
+    />
+  }
+</section>
+
+@if (loading()) {
+  <app-page-feedback
+    kind="loading"
+    title="Loading bookings"
+    message="Fetching bookings for all participants."
+  />
+} @else if (error()) {
+  <app-page-feedback
+    kind="error"
+    title="Bookings could not be loaded"
+    [message]="error()"
+    (retry)="refresh()"
+  />
+} @else if (!bookings().length) {
+  <app-page-feedback
+    kind="empty"
+    title="No bookings found"
+    message="No bookings match the current selection."
+  />
+  @if (eventId() || status()) {
+    <button class="btn btn-outline" type="button" (click)="clearFilters()">Clear filters</button>
+  }
+} @else {
+  <section class="panel" aria-label="Bookings">
+    <table class="data-table">
+      <caption class="muted">
+        All-participant bookings ·
+        {{
+          bookings().length
+        }}
+        results. Times shown in your local timezone.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Participant</th>
+          <th scope="col">Event</th>
+          <th scope="col">Event times</th>
+          <th scope="col">Booking status</th>
+          <th scope="col">Event status</th>
+          <th scope="col">Created</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (booking of bookings(); track booking.id) {
+          <tr>
+            <td data-label="Participant" class="primary-cell">
+              {{ booking.participant.displayName }}
+            </td>
+            <td data-label="Event">{{ booking.event.title }}</td>
+            <td data-label="Event times">
+              <div>Starts {{ booking.event.startsAt | date: 'medium' }}</div>
+              <div class="muted">Ends {{ booking.event.endsAt | date: 'medium' }}</div>
+            </td>
+            <td data-label="Booking status"><app-status-badge [status]="booking.status" /></td>
+            <td data-label="Event status"><app-status-badge [status]="booking.event.status" /></td>
+            <td data-label="Created">{{ booking.createdAt | date: 'medium' }}</td>
+            <td data-label="Actions">
+              <a
+                class="btn btn-outline btn-sm"
+                [routerLink]="['/bookings', booking.id]"
+                queryParamsHandling="preserve"
+                [attr.aria-label]="
+                  'View booking for ' +
+                  booking.participant.displayName +
+                  ' at ' +
+                  booking.event.title
+                "
+                >View details</a
+              >
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+}

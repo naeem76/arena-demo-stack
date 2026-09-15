@@ -1,0 +1,109 @@
+<app-confirm-dialog />
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Administration / Bookings</p>
+    <h1 class="page-title">Booking details</h1>
+    <p class="page-subtitle">Reservation details and cancellation history.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline" routerLink="/bookings" queryParamsHandling="preserve"
+      >Back to bookings</a
+    >
+    <button
+      class="btn btn-outline"
+      type="button"
+      (click)="refresh()"
+      [disabled]="loading() || cancelling()"
+    >
+      Refresh
+    </button>
+  </div>
+</header>
+@if (cancelError()) {
+  <div class="notice" role="alert"><strong>Cancellation failed.</strong> {{ cancelError() }}</div>
+}
+@if (success()) {
+  <div class="notice" role="status">{{ success() }}</div>
+}
+@if (loading()) {
+  <app-page-feedback
+    kind="loading"
+    title="Loading booking"
+    message="Fetching reservation details."
+  />
+} @else if (error()) {
+  <app-page-feedback
+    kind="error"
+    [title]="notFound() ? 'Booking not found' : 'Booking could not be loaded'"
+    [message]="error()"
+    (retry)="refresh()"
+  />
+} @else if (booking(); as booking) {
+  <section class="panel" aria-labelledby="reservation-heading">
+    <h2 id="reservation-heading">{{ booking.participant.displayName }}</h2>
+    <dl class="detail-grid">
+      <div>
+        <dt class="detail-label">Booking status</dt>
+        <dd class="detail-value"><app-status-badge [status]="booking.status" /></dd>
+      </div>
+      <div>
+        <dt class="detail-label">Booking ID</dt>
+        <dd class="detail-value mono">{{ booking.id }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Created</dt>
+        <dd class="detail-value">{{ booking.createdAt | date: 'medium' }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Last updated</dt>
+        <dd class="detail-value">{{ booking.updatedAt | date: 'medium' }}</dd>
+      </div>
+    </dl>
+  </section>
+  <section class="panel" aria-labelledby="event-heading">
+    <h2 id="event-heading">{{ booking.event.title }}</h2>
+    <dl class="detail-grid">
+      <div>
+        <dt class="detail-label">Event status</dt>
+        <dd class="detail-value"><app-status-badge [status]="booking.event.status" /></dd>
+      </div>
+      <div>
+        <dt class="detail-label">Location</dt>
+        <dd class="detail-value">{{ booking.event.location }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Starts</dt>
+        <dd class="detail-value">{{ booking.event.startsAt | date: 'medium' }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Ends</dt>
+        <dd class="detail-value">{{ booking.event.endsAt | date: 'medium' }}</dd>
+      </div>
+    </dl>
+    <p class="muted">Times shown in your local timezone.</p>
+    @if (booking.event.status === 'CANCELLED') {
+      <p class="notice">
+        This event is cancelled. Event status and booking status are separate; a confirmed booking
+        can still be cancelled before its start time.
+      </p>
+    }
+  </section>
+  <section class="panel" aria-labelledby="cancel-heading">
+    <h2 id="cancel-heading">Cancel booking</h2>
+    <p id="cancellation-explanation">
+      {{
+        cancellationUnavailable() ||
+          'Cancellation releases this reservation and retains the booking in history.'
+      }}
+    </p>
+    <button
+      class="btn btn-error"
+      type="button"
+      aria-describedby="cancellation-explanation"
+      [disabled]="cancelling() || !!cancellationUnavailable()"
+      (click)="cancelBooking()"
+    >
+      {{ cancelling() ? 'Awaiting cancellation…' : 'Cancel booking' }}
+    </button>
+  </section>
+}

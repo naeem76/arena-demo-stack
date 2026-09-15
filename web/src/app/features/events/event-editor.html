@@ -1,0 +1,65 @@
+<app-confirm-dialog />
+<a class="btn btn-outline btn-sm" [routerLink]="id() ? ['/events', id()] : ['/events']"
+  ><span aria-hidden="true">←</span> {{ id() ? 'Event overview' : 'All events' }}</a
+>
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Competition management</p>
+    <h1 class="page-title">{{ id() ? 'Edit event' : 'Create event' }}</h1>
+    <p class="page-subtitle">
+      {{
+        id()
+          ? 'Fine-tune the details before the action starts.'
+          : 'Set the stage for your next fixture.'
+      }}
+    </p>
+  </div>
+</header>
+@if (storageError()) {
+  <p class="alert" role="alert">{{ storageError() }}</p>
+}
+@if (loading()) {
+  <app-page-feedback
+    kind="loading"
+    title="Loading editor"
+    message="Preparing event details and your draft."
+  />
+} @else if (loadError()) {
+  <app-page-feedback
+    kind="error"
+    title="Unable to load event"
+    [message]="loadError()"
+    (retry)="refresh()"
+  />
+} @else if (initial() && initial()?.status !== 'SCHEDULED') {
+  <section class="panel">
+    <h2>Editing is closed</h2>
+    <p class="muted">
+      Only scheduled events can be edited. This event is {{ initial()?.status }}. Any existing draft
+      has been retained.
+    </p>
+    <button type="button" class="btn btn-outline" (click)="discard()">
+      Discard draft and leave
+    </button>
+  </section>
+} @else {
+  @if (draft()) {
+    <p class="notice" role="status">
+      Your unsaved draft has been restored. Review it before saving.
+    </p>
+  }
+  @if (saveError()) {
+    <p class="alert alert-error" role="alert">{{ saveError() }}</p>
+  }
+  <section class="panel" aria-label="Event editor" [attr.aria-busy]="busy()">
+    <app-event-form
+      [initial]="initial()"
+      [draft]="draft()"
+      [busy]="busy()"
+      [serverErrors]="serverErrors()"
+      (validEventRequest)="save($event)"
+      (draftChange)="persistDraft($event)"
+      (discard)="discard()"
+    />
+  </section>
+}

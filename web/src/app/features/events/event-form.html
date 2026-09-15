@@ -1,0 +1,116 @@
+<form class="entity-form" [formGroup]="form" (ngSubmit)="submit()">
+  @if (submitted() && form.invalid) {
+    <p class="alert alert-error" role="alert">
+      Please review the highlighted fields before saving.
+    </p>
+  }
+  <fieldset [disabled]="busy()" class="form-grid" style="border: 0; padding: 0; margin: 0">
+    <legend class="page-subtitle">
+      Event information · all fields required except description
+    </legend>
+    <div class="field">
+      <label for="event-title">Event title</label>
+      <input
+        id="event-title"
+        class="input"
+        formControlName="title"
+        maxlength="150"
+        required
+        [attr.aria-invalid]="!!error('title')"
+        aria-describedby="title-error"
+      />
+      <span id="title-error" class="field-error">{{ error('title') }}</span>
+    </div>
+    <div class="field">
+      <label for="event-sport">Sport</label>
+      <input
+        id="event-sport"
+        class="input"
+        formControlName="sport"
+        maxlength="50"
+        required
+        [attr.aria-invalid]="!!error('sport')"
+        aria-describedby="sport-error"
+      />
+      <span id="sport-error" class="field-error">{{ error('sport') }}</span>
+    </div>
+    <div class="field">
+      <label for="event-location">Location</label>
+      <input
+        id="event-location"
+        class="input"
+        formControlName="location"
+        maxlength="200"
+        required
+        [attr.aria-invalid]="!!error('location')"
+        aria-describedby="location-error"
+      />
+      <span id="location-error" class="field-error">{{ error('location') }}</span>
+    </div>
+    <div class="field">
+      <label for="event-capacity">Total capacity</label>
+      <input
+        id="event-capacity"
+        class="input"
+        type="number"
+        formControlName="capacity"
+        min="1"
+        step="1"
+        required
+        [attr.aria-invalid]="!!error('capacity')"
+        aria-describedby="capacity-help capacity-error"
+      />
+      <span id="capacity-help" class="muted">Maximum confirmed reservations for this event.</span>
+      <span id="capacity-error" class="field-error">{{ error('capacity') }}</span>
+    </div>
+    <div class="field">
+      <label for="event-start">Starts at (local time)</label>
+      <input
+        id="event-start"
+        class="input"
+        type="datetime-local"
+        step="0.001"
+        formControlName="startsAt"
+        required
+        [attr.aria-invalid]="!!error('startsAt')"
+        aria-describedby="start-error"
+      />
+      <span id="start-error" class="field-error">{{ error('startsAt') }}</span>
+    </div>
+    <div class="field">
+      <label for="event-end">Ends at (local time)</label>
+      <input
+        id="event-end"
+        class="input"
+        type="datetime-local"
+        step="0.001"
+        formControlName="endsAt"
+        required
+        [attr.aria-invalid]="!!error('endsAt')"
+        aria-describedby="end-error"
+      />
+      <span id="end-error" class="field-error">{{ error('endsAt') }}</span>
+    </div>
+    <div class="field" style="grid-column: 1 / -1">
+      <label for="event-description">Description <span class="muted">(optional)</span></label>
+      <textarea
+        id="event-description"
+        class="textarea"
+        formControlName="description"
+        maxlength="2000"
+        rows="5"
+        [attr.aria-invalid]="!!error('description')"
+        aria-describedby="description-error"
+      ></textarea>
+      <span id="description-error" class="field-error">{{ error('description') }}</span>
+    </div>
+    <div class="actions" style="grid-column: 1 / -1">
+      <button class="btn btn-primary" type="submit">
+        {{ busy() ? 'Saving…' : initial() ? 'Save changes' : 'Create event' }}
+      </button>
+      <button class="btn btn-outline" type="button" (click)="discard.emit()">
+        Discard and leave
+      </button>
+    </div>
+  </fieldset>
+</form>

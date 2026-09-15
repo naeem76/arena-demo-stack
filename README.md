@@ -1,11 +1,12 @@
 # Arena Assessment
 
-This repository contains the Arena full-stack developer assessment. The project
-will include a Spring Boot backend, an Angular web application, and a Flutter
-mobile application.
+This repository contains the Arena full-stack developer assessment: a Spring Boot
+backend and Angular administration SPA. The Flutter mobile application is the
+next implementation milestone.
 
-The backend Event CRUD API, user/admin booking management, and database-backed
-OAuth2/OIDC login are implemented. This README will be updated as implementation progresses.
+The Angular app supports complete Event CRUD, lifecycle management and cross-user
+booking inspection/cancellation, backed by database-persisted users and OAuth2/OIDC
+login. Both applications share a generated OpenAPI contract.
 
 ## Run locally
 
@@ -17,12 +18,13 @@ From the repository root:
 docker compose up --build --wait
 ```
 
+- Angular admin workspace: <http://localhost:4200>
 - Backend health: <http://localhost:8080/actuator/health>
 - Interactive API reference (Scalar): <http://localhost:8080/scalar>
 - OpenAPI document: <http://localhost:8080/v3/api-docs>
 - OpenID Connect discovery: <http://localhost:8080/.well-known/openid-configuration>
-- Local admin sign-in for Scalar: `admin` / `arena-admin` (Event CRUD and all bookings)
-- Local user sign-in for Scalar: `demo` / `arena-demo` (browse events and manage own bookings)
+- Local admin sign-in: `admin` / `arena-admin` (Angular workspace and Scalar)
+- Local user sign-in: `demo` / `arena-demo` (API personal bookings; no admin workspace access)
 - PostgreSQL: `localhost:5432`, database `arena`
 - Local development database credentials: `arena` / `arena_local`
 
@@ -33,11 +35,50 @@ The bundled credentials are for local development only.
 Stop the services with `docker compose down`. To also delete local database
 data, use `docker compose down --volumes`.
 
-If the default ports are occupied, set `BACKEND_PORT` and/or `POSTGRES_PORT`:
+If the default ports are occupied, set `WEB_PORT`, `BACKEND_PORT` and/or `POSTGRES_PORT`:
 
 ```sh
-BACKEND_PORT=8081 POSTGRES_PORT=5433 docker compose up --build --wait
+WEB_PORT=4201 BACKEND_PORT=8081 POSTGRES_PORT=5433 docker compose up --build --wait
 ```
+
+Compose derives browser API/issuer URLs and the registered Angular callback from
+these ports. Open the web app using `localhost`, matching the registered origin.
+For custom hostnames, configure `WEB_ORIGIN`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL`
+and `AUTH_ISSUER_URI` with the externally reachable URLs.
+
+## Angular development
+
+Prerequisite: Node.js 24.15+ (24.x); `.nvmrc` pins 24.19.0. From `web/`:
+
+```sh
+npm ci
+npm start
+```
+
+The backend must be running for sign-in and live data. If the Compose web service
+already occupies port 4200, stop it with `docker compose stop web` from the root.
+For a backend on a different port:
+
+```sh
+API_BASE_URL=http://localhost:18080 npm start
+```
+
+Build and run frontend tests from `web/`:
+
+```sh
+npm test
+npm run build
+```
+
+Builds regenerate the typed API client from the committed OpenAPI snapshot, so
+they do not require a running backend. To refresh the snapshot and regenerate:
+
+```sh
+API_BASE_URL=http://localhost:8080 npm run update:api
+```
+
+See [web application](web/README.md) for structure, authentication, runtime
+configuration, testing and trade-offs.
 
 ## Backend development
 

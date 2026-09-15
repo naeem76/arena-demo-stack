@@ -1,0 +1,106 @@
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Competition management</p>
+    <h1 class="page-title">Events</h1>
+    <p class="page-subtitle">Every fixture. One clear view.</p>
+  </div>
+  <a class="btn btn-primary" routerLink="/events/new"
+    >Create event <span aria-hidden="true">↗</span></a
+  >
+</header>
+@if (notice()) {
+  <p class="notice" role="status">{{ notice() }}</p>
+}
+<section class="panel" aria-label="Event directory">
+  <form
+    class="toolbar"
+    (submit)="$event.preventDefault(); filter(sportInput.value, statusInput.value)"
+  >
+    <div class="field">
+      <label for="filter-sport">Sport</label
+      ><input
+        #sportInput
+        id="filter-sport"
+        class="input"
+        type="search"
+        [value]="sport()"
+        placeholder="All sports"
+      />
+    </div>
+    <div class="field">
+      <label for="filter-status">Status</label
+      ><select #statusInput id="filter-status" class="select" [value]="status()">
+        <option value="">All statuses</option>
+        @for (value of statuses; track value) {
+          <option [value]="value">{{ value }}</option>
+        }
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Apply filters</button>
+    <button type="button" class="btn btn-outline" (click)="filter('', '')">Clear filters</button>
+    <button type="button" class="btn btn-outline" (click)="refresh()" [disabled]="loading()">
+      Refresh
+    </button>
+  </form>
+  @if (loading()) {
+    <app-page-feedback
+      kind="loading"
+      title="Loading events"
+      message="Fetching the latest fixtures."
+    />
+  } @else if (error()) {
+    <app-page-feedback
+      kind="error"
+      title="Unable to load events"
+      [message]="error()"
+      (retry)="refresh()"
+    />
+  } @else if (events().length === 0) {
+    <app-page-feedback
+      kind="empty"
+      title="No events found"
+      [message]="
+        sport() || status()
+          ? 'Try clearing or changing your filters.'
+          : 'Create your first event to start managing fixtures.'
+      "
+    />
+  } @else {
+    <table class="data-table">
+      <caption class="muted">
+        {{
+          events().length
+        }}
+        events · times shown in your local timezone · capacity is total places
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Event</th>
+          <th scope="col">Sport</th>
+          <th scope="col">Starts</th>
+          <th scope="col">Location</th>
+          <th scope="col">Total capacity</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (event of events(); track event.id) {
+          <tr>
+            <td class="primary-cell" data-label="Event">
+              <a [routerLink]="['/events', event.id]"
+                >{{ event.title }} <span aria-hidden="true">↗</span></a
+              >
+            </td>
+            <td data-label="Sport">{{ event.sport }}</td>
+            <td data-label="Starts">
+              <time [attr.datetime]="event.startsAt">{{ event.startsAt | date: 'medium' }}</time>
+            </td>
+            <td data-label="Location">{{ event.location }}</td>
+            <td data-label="Total capacity" class="mono">{{ event.capacity }}</td>
+            <td data-label="Status"><app-status-badge [status]="event.status" /></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>

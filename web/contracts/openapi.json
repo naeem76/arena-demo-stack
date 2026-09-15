@@ -1,0 +1,852 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Arena Assessment API",
+    "description": "Backend API for the Arena full-stack developer assessment.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:18080",
+      "description": "Generated server url"
+    }
+  ],
+  "security": [
+    {
+      "arenaOAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Diagnostics",
+      "description": "Manual error testing; available only with the diagnostics profile."
+    },
+    {
+      "name": "Events",
+      "description": "Sports event management"
+    },
+    {
+      "name": "Bookings",
+      "description": "Personal reservations and administrator booking management"
+    }
+  ],
+  "paths": {
+    "/api/events/{id}": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Get event details",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Replace scheduled event details (admin only)",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Delete an event (admin only)",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Event deleted"
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "List events, optionally filtering by sport and status",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "sport",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 50,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SCHEDULED",
+                "LIVE",
+                "COMPLETED",
+                "CANCELLED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Create a scheduled event (admin only)",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Event created",
+            "headers": {
+              "Location": {
+                "description": "URL of the created event",
+                "style": "simple"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/diagnostics/validation": {
+      "post": {
+        "tags": [
+          "Diagnostics"
+        ],
+        "summary": "Validate a sample request; echo valid input",
+        "operationId": "validate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationRequest"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/bookings": {
+      "get": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "List your bookings; administrators may request scope=all",
+        "description": "Defaults to scope=mine, including for administrators. Optional eventId and status filters apply to either scope.",
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "mine",
+              "pattern": "mine|all"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CONFIRMED",
+                "CANCELLED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BookingResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Reserve one place at an event",
+        "operationId": "create_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Booking created",
+            "headers": {
+              "Location": {
+                "description": "URL of the created booking",
+                "style": "simple"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Cancel a booking as its owner or an administrator before the event starts",
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/events/{id}/status": {
+      "patch": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Change event status through an allowed lifecycle transition (admin only)",
+        "operationId": "changeStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/diagnostics/errors/{status}": {
+      "get": {
+        "tags": [
+          "Diagnostics"
+        ],
+        "summary": "Exercise an HTTP error status from 400 through 599",
+        "operationId": "error",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "maximum": 599,
+              "minimum": 400
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Requested error, or 400 for invalid input",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/diagnostics/errors/unexpected": {
+      "get": {
+        "tags": [
+          "Diagnostics"
+        ],
+        "summary": "Trigger an unexpected exception to verify logging and error masking",
+        "operationId": "unexpectedError",
+        "responses": {
+          "500": {
+            "description": "Masked internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/bookings/{id}": {
+      "get": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Read a booking as its owner or an administrator",
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "arenaOAuth": [
+              "api.access"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EventRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "sport": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 0
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 0
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "capacity",
+          "endsAt",
+          "location",
+          "sport",
+          "startsAt",
+          "title"
+        ]
+      },
+      "EventResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sport": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "LIVE",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "capacity",
+          "createdAt",
+          "endsAt",
+          "id",
+          "location",
+          "sport",
+          "startsAt",
+          "status",
+          "title",
+          "updatedAt"
+        ]
+      },
+      "ValidationRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 0
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "name",
+          "quantity"
+        ]
+      },
+      "BookingRequest": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "eventId"
+        ]
+      },
+      "BookingResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event": {
+            "$ref": "#/components/schemas/EventResponse"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "CANCELLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "participant": {
+            "$ref": "#/components/schemas/Participant"
+          }
+        },
+        "required": [
+          "createdAt",
+          "event",
+          "id",
+          "participant",
+          "status",
+          "updatedAt"
+        ]
+      },
+      "Participant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "id"
+        ]
+      },
+      "EventStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "LIVE",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ProblemDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "arenaOAuth": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "http://localhost:18080/oauth2/authorize",
+            "tokenUrl": "http://localhost:18080/oauth2/token",
+            "scopes": {
+              "api.access": "Access the API; roles and ownership determine permitted actions",
+              "openid": "Request an OpenID Connect ID token",
+              "profile": "Include the user's display name"
+            }
+          }
+        }
+      }
+    }
+  }
+}

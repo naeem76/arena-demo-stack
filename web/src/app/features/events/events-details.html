@@ -1,0 +1,139 @@
+<app-confirm-dialog />
+<a class="btn btn-outline btn-sm" routerLink="/events"
+  ><span aria-hidden="true">←</span> All events</a
+>
+@if (loading()) {
+  <app-page-feedback kind="loading" title="Loading event" message="Fetching event information." />
+} @else if (error()) {
+  <app-page-feedback
+    kind="error"
+    title="Unable to load event"
+    [message]="error()"
+    (retry)="refresh()"
+  />
+} @else if (event(); as item) {
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">{{ item.sport }} · Event overview</p>
+      <h1 class="page-title">{{ item.title }}</h1>
+      <p class="page-subtitle">{{ item.location }}</p>
+    </div>
+    <app-status-badge [status]="item.status" />
+  </header>
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+  @if (actionError()) {
+    <p class="alert alert-error" role="alert">{{ actionError() }}</p>
+  }
+  <section class="panel" aria-labelledby="event-information">
+    <h2 id="event-information">Event information</h2>
+    <p class="muted">All dates and times are shown in your local timezone.</p>
+    <dl class="detail-grid">
+      <div>
+        <dt class="detail-label">Event ID</dt>
+        <dd class="detail-value mono">{{ item.id }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Sport</dt>
+        <dd class="detail-value">{{ item.sport }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Location</dt>
+        <dd class="detail-value">{{ item.location }}</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Total capacity</dt>
+        <dd class="detail-value">{{ item.capacity }} places</dd>
+      </div>
+      <div>
+        <dt class="detail-label">Starts</dt>
+        <dd class="detail-value">
+          <time [attr.datetime]="item.startsAt">{{ item.startsAt | date: 'medium' }}</time>
+        </dd>
+      </div>
+      <div>
+        <dt class="detail-label">Ends</dt>
+        <dd class="detail-value">
+          <time [attr.datetime]="item.endsAt">{{ item.endsAt | date: 'medium' }}</time>
+        </dd>
+      </div>
+      <div>
+        <dt class="detail-label">Created</dt>
+        <dd class="detail-value">
+          <time [attr.datetime]="item.createdAt">{{ item.createdAt | date: 'medium' }}</time>
+        </dd>
+      </div>
+      <div>
+        <dt class="detail-label">Last updated</dt>
+        <dd class="detail-value">
+          <time [attr.datetime]="item.updatedAt">{{ item.updatedAt | date: 'medium' }}</time>
+        </dd>
+      </div>
+      <div style="grid-column: 1 / -1">
+        <dt class="detail-label">Description</dt>
+        <dd class="detail-value" style="white-space: pre-wrap; overflow-wrap: anywhere">
+          {{ item.description || 'No description provided.' }}
+        </dd>
+      </div>
+    </dl>
+    <div class="actions">
+      <a class="btn btn-primary" routerLink="/bookings" [queryParams]="{ eventId: item.id }"
+        >View bookings <span aria-hidden="true">↗</span></a
+      >
+      @if (item.status === 'SCHEDULED' && !busy()) {
+        <a class="btn btn-outline" [routerLink]="['/events', item.id, 'edit']">Edit details</a>
+      }
+      <button type="button" class="btn btn-outline" [disabled]="busy()" (click)="refresh()">
+        Refresh
+      </button>
+    </div>
+  </section>
+  <section class="panel" aria-labelledby="event-lifecycle" [attr.aria-busy]="busy()">
+    <h2 id="event-lifecycle">Event lifecycle</h2>
+    <p class="muted">
+      Details can be edited only while scheduled. Status transitions cannot be reversed.
+    </p>
+    <div class="actions">
+      @if (item.status === 'SCHEDULED') {
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="busy()"
+          (click)="changeStatus('LIVE')"
+        >
+          Start event
+        </button>
+      }
+      @if (item.status === 'LIVE') {
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="busy()"
+          (click)="changeStatus('COMPLETED')"
+        >
+          Complete event
+        </button>
+      }
+      @if (item.status === 'SCHEDULED' || item.status === 'LIVE') {
+        <button
+          type="button"
+          class="btn btn-outline"
+          [disabled]="busy()"
+          (click)="changeStatus('CANCELLED')"
+        >
+          Cancel event
+        </button>
+      }
+      <button
+        type="button"
+        class="btn btn-error btn-outline"
+        [disabled]="busy()"
+        (click)="deleteEvent()"
+      >
+        Delete event
+      </button>
+    </div>
+    <p class="muted">Deletion is permanent and is blocked when booking history exists.</p>
+  </section>
+}
