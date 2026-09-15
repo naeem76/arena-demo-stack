@@ -3,7 +3,6 @@
   <div>
     <p class="eyebrow">Administration / Bookings</p>
     <h1 class="page-title">Booking details</h1>
-    <p class="page-subtitle">Reservation details and cancellation history.</p>
   </div>
   <div class="actions">
     <a class="btn btn-outline" routerLink="/bookings" queryParamsHandling="preserve"
@@ -26,11 +25,7 @@
   <div class="notice" role="status">{{ success() }}</div>
 }
 @if (loading()) {
-  <app-page-feedback
-    kind="loading"
-    title="Loading booking"
-    message="Fetching reservation details."
-  />
+  <app-page-feedback kind="loading" title="Loading booking" />
 } @else if (error()) {
   <app-page-feedback
     kind="error"

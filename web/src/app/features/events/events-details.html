@@ -3,7 +3,7 @@
   ><span aria-hidden="true">←</span> All events</a
 >
 @if (loading()) {
-  <app-page-feedback kind="loading" title="Loading event" message="Fetching event information." />
+  <app-page-feedback kind="loading" title="Loading event" />
 } @else if (error()) {
   <app-page-feedback
     kind="error"
@@ -14,7 +14,7 @@
 } @else if (event(); as item) {
   <header class="page-header">
     <div>
-      <p class="eyebrow">{{ item.sport }} · Event overview</p>
+      <p class="eyebrow">{{ item.sport }}</p>
       <h1 class="page-title">{{ item.title }}</h1>
       <p class="page-subtitle">{{ item.location }}</p>
     </div>

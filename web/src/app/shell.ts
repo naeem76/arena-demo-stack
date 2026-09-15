@@ -54,12 +54,6 @@ import { Brand } from './shared/brand';
             >Bookings<span class="nav-arrow" aria-hidden="true">↗</span></a
           >
         </nav>
-        <div class="sidebar-footer">
-          <p>THE DETAILS MATTER.</p>
-          <span>A clear view of every event.<br />A place for every participant.</span>
-          <div class="sidebar-rule"></div>
-          <span class="workspace-label">ADMIN WORKSPACE</span>
-        </div>
       </aside>
       <div class="workspace-body">
         <header class="workspace-header">
@@ -106,9 +100,6 @@ import { Brand } from './shared/brand';
           }
           <router-outlet />
         </main>
-        <footer class="workspace-footer">
-          ARENA <span>Events in order. People in focus.</span>
-        </footer>
       </div>
     </div>
   `,

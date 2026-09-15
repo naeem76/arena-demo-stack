@@ -256,28 +256,6 @@ select {
 .sidebar nav a.active .nav-arrow {
   opacity: 1;
 }
-.sidebar-footer {
-  margin-top: auto;
-  padding: 24px 12px 0;
-  color: #8dac9b;
-  font-size: 11px;
-}
-.sidebar-footer p {
-  font-size: 9px;
-  letter-spacing: 0.13em;
-  color: #b6cbbb;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-.sidebar-rule {
-  margin-block: 24px 18px;
-  height: 1px;
-  background: #355044;
-}
-.workspace-label {
-  font-size: 8px;
-  letter-spacing: 0.19em;
-}
 .workspace-body {
   display: flex;
   flex-direction: column;
@@ -341,20 +319,6 @@ select {
 }
 .main-content:focus {
   outline: none;
-}
-.workspace-footer {
-  display: flex;
-  justify-content: space-between;
-  margin: 0 44px;
-  padding: 19px 0;
-  border-top: 1px solid #dde5db;
-  color: #779080;
-  font: 600 10px var(--font-display);
-  letter-spacing: 0.1em;
-}
-.workspace-footer span {
-  font: 10px var(--font-sans);
-  letter-spacing: 0;
 }
 .mobile-menu {
   display: none;
@@ -682,31 +646,12 @@ select {
   margin-block: auto;
   padding-block: 80px;
 }
-.entry-copy .eyebrow {
-  color: #9bb997;
-}
 .entry-copy h1 {
   font-size: clamp(45px, 5.7vw, 83px);
   font-weight: 400;
   line-height: 1.04;
   letter-spacing: -0.045em;
   margin: 24px 0 30px;
-}
-.entry-copy em {
-  font-style: normal;
-  color: #cce483;
-}
-.entry-copy > p:last-child {
-  color: #a8c0af;
-  line-height: 1.9;
-  font-size: 13px;
-}
-.entry-foot {
-  font-size: 10px;
-  color: #9cb5a4;
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 .entry-action {
   background: #f7f8f2;
@@ -741,11 +686,6 @@ select {
   font-size: 11px;
   margin-top: 20px;
   line-height: 1.8;
-}
-.entry-caption {
-  color: #8e9b8c;
-  font-size: 10px;
-  margin-top: 70px;
 }
 .callback-page {
   min-height: 100dvh;
@@ -841,9 +781,6 @@ select {
     opacity: 1;
     transform: none;
   }
-  .sidebar-footer {
-    display: none;
-  }
   .nav-caption {
     margin: 22px 14px 10px;
   }
@@ -936,13 +873,6 @@ select {
   .panel > h3 {
     margin-inline: 22px;
   }
-  .workspace-footer {
-    margin-inline: 18px;
-    font-size: 9px;
-  }
-  .workspace-footer span {
-    font-size: 9px;
-  }
   .session-alert {
     flex-wrap: wrap;
   }
@@ -960,10 +890,6 @@ select {
     font-size: 48px;
     margin-block: 12px 20px;
   }
-  .entry-copy > p:last-child,
-  .entry-foot {
-    display: none;
-  }
   .entry-action {
     padding: 38px 30px;
     align-items: flex-start;
@@ -973,9 +899,6 @@ select {
   }
   .entry-card h2 {
     font-size: 31px;
-  }
-  .entry-caption {
-    margin-top: 32px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

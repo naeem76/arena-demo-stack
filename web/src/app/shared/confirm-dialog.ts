@@ -17,12 +17,11 @@ export interface Confirmation {
       (close)="finish(false)"
     >
       <div class="modal-box">
-        <p class="eyebrow">Please confirm</p>
         <h2 [id]="titleId" class="dialog-title">{{ options()?.title }}</h2>
         <p class="dialog-copy">{{ options()?.message }}</p>
         <div class="modal-action">
           <button type="button" class="btn btn-ghost" autofocus (click)="finish(false)">
-            Keep it
+            Cancel
           </button>
           <button type="button" class="btn btn-error" (click)="finish(true)">
             {{ options()?.confirmLabel || 'Confirm' }}

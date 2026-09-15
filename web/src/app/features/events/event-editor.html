@@ -4,26 +4,14 @@
 >
 <header class="page-header">
   <div>
-    <p class="eyebrow">Competition management</p>
     <h1 class="page-title">{{ id() ? 'Edit event' : 'Create event' }}</h1>
-    <p class="page-subtitle">
-      {{
-        id()
-          ? 'Fine-tune the details before the action starts.'
-          : 'Set the stage for your next fixture.'
-      }}
-    </p>
   </div>
 </header>
 @if (storageError()) {
   <p class="alert" role="alert">{{ storageError() }}</p>
 }
 @if (loading()) {
-  <app-page-feedback
-    kind="loading"
-    title="Loading editor"
-    message="Preparing event details and your draft."
-  />
+  <app-page-feedback kind="loading" title="Loading editor" />
 } @else if (loadError()) {
   <app-page-feedback
     kind="error"

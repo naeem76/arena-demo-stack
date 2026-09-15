@@ -184,7 +184,7 @@ export class EventEditor {
       this.dirty() &&
       !(await this.confirm().ask({
         title: 'Discard your changes?',
-        message: 'Your unsaved changes and this event’s stored draft will be removed.',
+        message: 'This will remove your unsaved changes and the stored draft.',
         confirmLabel: 'Discard changes',
       }))
     )

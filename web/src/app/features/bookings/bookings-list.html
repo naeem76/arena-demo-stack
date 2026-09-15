@@ -1,8 +1,6 @@
 <header class="page-header">
   <div>
-    <p class="eyebrow">Administration</p>
     <h1 class="page-title">Bookings</h1>
-    <p class="page-subtitle">Review participant reservations and their booking history.</p>
   </div>
   <button class="btn btn-outline" type="button" (click)="refresh()" [disabled]="loading()">
     Refresh
@@ -57,11 +55,7 @@
 </section>
 
 @if (loading()) {
-  <app-page-feedback
-    kind="loading"
-    title="Loading bookings"
-    message="Fetching bookings for all participants."
-  />
+  <app-page-feedback kind="loading" title="Loading bookings" />
 } @else if (error()) {
   <app-page-feedback
     kind="error"

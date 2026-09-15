@@ -82,7 +82,7 @@ export class EventDetails {
     this.busy.set(true);
     const accepted = await this.confirm().ask({
       title: `Change status to ${status.toLowerCase()}?`,
-      message: `“${event.title}” will move from ${event.status.toLowerCase()} to ${status.toLowerCase()}. This transition cannot be undone.`,
+      message: `"${event.title}" will change from ${event.status.toLowerCase()} to ${status.toLowerCase()}. You cannot undo this change.`,
       confirmLabel: 'Change status',
     });
     if (!accepted || this.destroyRef.destroyed || this.event()?.id !== event.id) {
@@ -114,7 +114,7 @@ export class EventDetails {
     this.busy.set(true);
     const accepted = await this.confirm().ask({
       title: 'Delete event?',
-      message: `Permanently delete “${event.title}”? Events with booking history cannot be deleted.`,
+      message: `Permanently delete "${event.title}"? Events with booking history cannot be deleted.`,
       confirmLabel: 'Delete event',
     });
     if (!accepted || this.destroyRef.destroyed || this.event()?.id !== event.id) {

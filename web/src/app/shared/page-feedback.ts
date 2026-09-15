@@ -14,7 +14,9 @@ import { Component, input, output } from '@angular/core';
         <span class="feedback-symbol" aria-hidden="true">{{ kind() === 'empty' ? '↗' : '!' }}</span>
       }
       <h2>{{ title() }}</h2>
-      <p>{{ message() }}</p>
+      @if (message()) {
+        <p>{{ message() }}</p>
+      }
       @if (kind() === 'error') {
         <button type="button" class="btn btn-outline btn-sm" (click)="retry.emit()">
           Try again

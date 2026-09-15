@@ -1,8 +1,6 @@
 <header class="page-header">
   <div>
-    <p class="eyebrow">Competition management</p>
     <h1 class="page-title">Events</h1>
-    <p class="page-subtitle">Every fixture. One clear view.</p>
   </div>
   <a class="btn btn-primary" routerLink="/events/new"
     >Create event <span aria-hidden="true">↗</span></a
@@ -43,11 +41,7 @@
     </button>
   </form>
   @if (loading()) {
-    <app-page-feedback
-      kind="loading"
-      title="Loading events"
-      message="Fetching the latest fixtures."
-    />
+    <app-page-feedback kind="loading" title="Loading events" />
   } @else if (error()) {
     <app-page-feedback
       kind="error"
@@ -62,7 +56,7 @@
       [message]="
         sport() || status()
           ? 'Try clearing or changing your filters.'
-          : 'Create your first event to start managing fixtures.'
+          : 'Create an event to get started.'
       "
     />
   } @else {
