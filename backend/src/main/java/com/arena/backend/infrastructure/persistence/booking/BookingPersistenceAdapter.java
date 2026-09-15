@@ -1,12 +1,14 @@
 package com.arena.backend.infrastructure.persistence.booking;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.arena.backend.domain.booking.Booking;
 import com.arena.backend.domain.booking.BookingRepository;
 import com.arena.backend.domain.booking.BookingStatus;
+import com.arena.backend.infrastructure.persistence.PageQueries;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -44,8 +46,8 @@ public class BookingPersistenceAdapter implements BookingRepository {
 	}
 
 	@Override
-	public List<Booking> findByUserId(UUID userId, UUID eventId, BookingStatus status) {
-		return repository.findOwned(userId, eventId, status);
+	public Page<Booking> findByUserId(UUID userId, UUID eventId, BookingStatus status, Pageable pageable) {
+		return PageQueries.fetch(pageable, request -> repository.findOwned(userId, eventId, status, request));
 	}
 
 	@Override
@@ -64,7 +66,7 @@ public class BookingPersistenceAdapter implements BookingRepository {
 	}
 
 	@Override
-	public List<Booking> findAll(UUID eventId, BookingStatus status) {
-		return repository.findFiltered(eventId, status);
+	public Page<Booking> findAll(UUID eventId, BookingStatus status, Pageable pageable) {
+		return PageQueries.fetch(pageable, request -> repository.findFiltered(eventId, status, request));
 	}
 }

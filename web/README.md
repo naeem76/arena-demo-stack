@@ -36,6 +36,21 @@ pending actions and errors are local to their owning pages. Signals represent
 UI state and RxJS handles asynchronous requests, cancellation and cleanup. Filter
 values live in query parameters so refresh/back/forward navigation preserves them.
 
+Events and bookings use server-side filters and pagination (`page` is zero-based,
+`size` defaults to 20 and is capped at 100). Previous/next controls show the current
+page, page count and total matching records. Applying or clearing filters resets
+the page. If deletion leaves a page beyond the end, the URL is replaced with the
+last available page; an empty dataset settles on page zero.
+List context is preserved through event details/edit/save/discard/delete and booking
+details/back. Opening bookings from event details starts at booking page zero with
+only that event filter, without carrying over event-list filters or pagination.
+
+The booking event filter loads only 20 event options at a time. Its separate
+`eventPage` URL parameter and previous/next controls make every event reachable
+without downloading the whole directory. The selected event is retained separately
+and fetched by ID when off-page, keeping its title visible while browsing options.
+Bookings always request `scope=all`.
+
 Create/edit share one typed Reactive Form component. The editor coordinates the
 generated API calls and navigation. Form controls enforce the backend's field
 limits and cross-field time rules, while the API remains authoritative. Local
@@ -112,7 +127,8 @@ npm run build
 Vitest tests cover HTTP token scoping, auth initialization/expiry/guards, safe
 return routes, error translation, typed form validation, timestamp conversion,
 draft recovery, create/update coordination, booking cancellation and all-user
-query scope. Tests mock the API/auth provider and do not require a live backend.
+query scope, paged navigation, last-page recovery and bounded event selection.
+Tests mock the API/auth provider and do not require a live backend.
 
 For a manual CRUD walkthrough, create a future event, edit it, filter and inspect
 it, then delete it with confirmation. Use another event for booking history:
@@ -123,8 +139,6 @@ observe the backend's restriction against deleting events with booking history.
 
 - Per-feature components and framework facilities keep the assessment small;
   there is no global domain-data store or generic schema-driven form engine.
-- Lists use the API's existing non-paginated responses; a larger dataset would
-  need coordinated backend pagination rather than hiding rows only in the browser.
 - daisyUI provides CSS styling; Angular and native HTML handle behavior. Dialogs
   use native modal focus handling, labels are explicit, and motion respects the
   reduced-motion preference. Fonts are bundled locally.

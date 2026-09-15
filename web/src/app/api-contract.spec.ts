@@ -24,11 +24,26 @@ describe('generated JSON API contracts', () => {
 
   it('decodes event lists and created records as JSON rather than blobs', async () => {
     const events = TestBed.inject(EventsService);
-    const listing = firstValueFrom(events.list());
-    const listRequest = http.expectOne('https://api.arena.test/api/events');
+    const listing = firstValueFrom(
+      events.list({ page: 2, size: 10, sport: 'Football', status: 'LIVE' }),
+    );
+    const listRequest = http.expectOne(
+      (request) => request.url === 'https://api.arena.test/api/events',
+    );
+    expect(listRequest.request.params.get('page')).toBe('2');
+    expect(listRequest.request.params.get('size')).toBe('10');
+    expect(listRequest.request.params.get('sport')).toBe('Football');
+    expect(listRequest.request.params.get('status')).toBe('LIVE');
     expect(listRequest.request.responseType).toBe('json');
-    listRequest.flush([{ id: 'event-1', title: 'Football' }]);
-    await expect(listing).resolves.toEqual([{ id: 'event-1', title: 'Football' }]);
+    const page = {
+      items: [{ id: 'event-1', title: 'Football' }],
+      page: 2,
+      size: 10,
+      totalElements: 21,
+      totalPages: 3,
+    };
+    listRequest.flush(page);
+    await expect(listing).resolves.toEqual(page);
 
     const creation = firstValueFrom(
       events.create({
@@ -69,14 +84,31 @@ describe('generated JSON API contracts', () => {
 
   it('decodes admin booking lists as JSON and sends explicit all-user scope', async () => {
     const result = firstValueFrom(
-      TestBed.inject(BookingsService).list1({ scope: 'all', status: 'CONFIRMED' }),
+      TestBed.inject(BookingsService).list1({
+        scope: 'all',
+        status: 'CONFIRMED',
+        eventId: 'event-1',
+        page: 1,
+        size: 20,
+      }),
     );
     const request = http.expectOne(
       (candidate) => candidate.url === 'https://api.arena.test/api/bookings',
     );
     expect(request.request.params.get('scope')).toBe('all');
+    expect(request.request.params.get('status')).toBe('CONFIRMED');
+    expect(request.request.params.get('eventId')).toBe('event-1');
+    expect(request.request.params.get('page')).toBe('1');
+    expect(request.request.params.get('size')).toBe('20');
     expect(request.request.responseType).toBe('json');
-    request.flush([{ id: 'booking-1', participant: { id: 'user-1', displayName: 'Demo User' } }]);
-    expect((await result)[0].participant.displayName).toBe('Demo User');
+    const page = {
+      items: [{ id: 'booking-1', participant: { id: 'user-1', displayName: 'Demo User' } }],
+      page: 1,
+      size: 20,
+      totalElements: 21,
+      totalPages: 2,
+    };
+    request.flush(page);
+    expect(await result).toEqual(page);
   });
 });

@@ -122,6 +122,12 @@ See [backend API foundation](backend/README.md) for Scalar sign-in instructions,
 error conventions, CORS configuration, and the opt-in diagnostic controller.
 
 The authenticated Event and Booking APIs are available at `/api/events` and
-`/api/bookings`, and documented in Scalar. Flyway applies
-versioned migrations from `backend/src/main/resources/db/migration` at startup.
+`/api/bookings`, and documented in Scalar. Both lists accept zero-based `page`
+(default `0`) and `size` (default `20`, maximum `100`). Responses contain
+`items`, `page`, `size`, `totalElements`, and `totalPages`. Filtering and
+authorization are applied before database pagination. The Angular lists and
+booking event selector load one page at a time.
+
+Flyway applies versioned migrations from
+`backend/src/main/resources/db/migration` at startup.
 Hibernate validates the schema rather than creating or updating it.

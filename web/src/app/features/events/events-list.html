@@ -2,7 +2,7 @@
   <div>
     <h1 class="page-title">Events</h1>
   </div>
-  <a class="btn btn-primary" routerLink="/events/new"
+  <a class="btn btn-primary" routerLink="/events/new" queryParamsHandling="preserve"
     >Create event <span aria-hidden="true">↗</span></a
   >
 </header>
@@ -65,7 +65,7 @@
         {{
           events().length
         }}
-        events · times shown in your local timezone · capacity is total places
+        events on this page · times shown in your local timezone · capacity is total places
       </caption>
       <thead>
         <tr>
@@ -81,7 +81,7 @@
         @for (event of events(); track event.id) {
           <tr>
             <td class="primary-cell" data-label="Event">
-              <a [routerLink]="['/events', event.id]"
+              <a [routerLink]="['/events', event.id]" queryParamsHandling="preserve"
                 >{{ event.title }} <span aria-hidden="true">↗</span></a
               >
             </td>
@@ -96,5 +96,13 @@
         }
       </tbody>
     </table>
+  }
+  @if (!error()) {
+    <app-pagination
+      label="Event pages"
+      [info]="pagination()"
+      [busy]="loading()"
+      (pageChange)="goToPage($event)"
+    />
   }
 </section>

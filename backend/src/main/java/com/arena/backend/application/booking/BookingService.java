@@ -1,7 +1,6 @@
 package com.arena.backend.application.booking;
 
 import java.time.Clock;
-import java.util.List;
 import java.util.UUID;
 
 import com.arena.backend.application.common.ResourceNotFoundException;
@@ -15,6 +14,8 @@ import com.arena.backend.domain.event.EventStatus;
 import com.arena.backend.domain.user.User;
 import com.arena.backend.domain.user.UserRepository;
 import com.arena.backend.domain.user.UserRole;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -36,14 +37,14 @@ public class BookingService {
 		this.clock = clock;
 	}
 
-	public List<Booking> list(Authentication caller, boolean allUsers, UUID eventId, BookingStatus status) {
+	public Page<Booking> list(Authentication caller, boolean allUsers, UUID eventId, BookingStatus status, Pageable pageable) {
 		if (allUsers) {
 			if (!isAdmin(caller)) {
 				throw new AccessDeniedException("Administrator access is required.");
 			}
-			return bookings.findAll(eventId, status);
+			return bookings.findAll(eventId, status, pageable);
 		}
-		return bookings.findByUserId(userId(caller), eventId, status);
+		return bookings.findByUserId(userId(caller), eventId, status, pageable);
 	}
 
 	public Booking findById(UUID id, Authentication caller) {

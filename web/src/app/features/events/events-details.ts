@@ -131,7 +131,10 @@ export class EventDetails {
       )
       .subscribe({
         next: () => {
-          void this.router.navigate(['/events'], { state: { notice: 'Event deleted.' } });
+          void this.router.navigate(['/events'], {
+            queryParamsHandling: 'preserve',
+            state: { notice: 'Event deleted.' },
+          });
         },
         error: (error) => this.actionError.set(describeApiError(error).message),
       });

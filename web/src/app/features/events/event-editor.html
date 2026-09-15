@@ -1,5 +1,8 @@
 <app-confirm-dialog />
-<a class="btn btn-outline btn-sm" [routerLink]="id() ? ['/events', id()] : ['/events']"
+<a
+  class="btn btn-outline btn-sm"
+  [routerLink]="id() ? ['/events', id()] : ['/events']"
+  queryParamsHandling="preserve"
   ><span aria-hidden="true">←</span> {{ id() ? 'Event overview' : 'All events' }}</a
 >
 <header class="page-header">

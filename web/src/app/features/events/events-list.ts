@@ -9,11 +9,12 @@ import { EventsService } from '../../api/services/events.service';
 import { describeApiError } from '../../core/api-error';
 import { PageFeedback } from '../../shared/page-feedback';
 import { StatusBadge } from '../../shared/status-badge';
+import { PageInfo, Pagination, readPagination, recoveryPage } from '../../shared/pagination';
 
 @Component({
   selector: 'app-events-list',
   standalone: true,
-  imports: [DatePipe, RouterLink, PageFeedback, StatusBadge],
+  imports: [DatePipe, RouterLink, PageFeedback, StatusBadge, Pagination],
   templateUrl: './events-list.html',
 })
 export class EventsList {
@@ -22,6 +23,7 @@ export class EventsList {
   private readonly router = inject(Router);
   private readonly reload = new Subject<void>();
   readonly events = signal<EventResponse[]>([]);
+  readonly pagination = signal<PageInfo>({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
   readonly loading = signal(true);
   readonly error = signal('');
   readonly sport = signal('');
@@ -46,10 +48,22 @@ export class EventsList {
             this.error.set('Unknown status filter. Choose a listed status and apply filters.');
             return EMPTY;
           }
-          const filters: List$Params = { sport: this.sport().trim() || undefined, status };
+          const paging = readPagination(params);
+          this.pagination.update((current) => ({ ...current, ...paging }));
+          const filters: List$Params = {
+            sport: this.sport().trim() || undefined,
+            status,
+            ...paging,
+          };
           return this.api.list(filters).pipe(
-            tap((events) => {
-              this.events.set(events);
+            tap((response) => {
+              this.pagination.set(response);
+              const last = recoveryPage(paging.page, response.totalPages);
+              if (last !== null) {
+                this.goToPage(last, true);
+                return;
+              }
+              this.events.set(response.items);
               this.loading.set(false);
             }),
             catchError((error) => {
@@ -67,12 +81,26 @@ export class EventsList {
   filter(sport: string, status: string): void {
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { sport: sport.trim() || null, status: status || null },
+      queryParams: {
+        sport: sport.trim() || null,
+        status: status || null,
+        page: 0,
+        size: this.pagination().size,
+      },
       queryParamsHandling: 'merge',
     });
   }
 
   refresh(): void {
     this.reload.next();
+  }
+
+  goToPage(page: number, replaceUrl = false): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { page, size: this.pagination().size },
+      queryParamsHandling: 'merge',
+      replaceUrl,
+    });
   }
 }

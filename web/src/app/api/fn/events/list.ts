@@ -7,18 +7,30 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-import { EventResponse } from '../../models/event-response';
+import { EventPageResponse } from '../../models/event-page-response';
 
 export interface List$Params {
   sport?: string;
   status?: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+
+/**
+ * Zero-based page number
+ */
+  page?: number;
+
+/**
+ * Maximum items per page
+ */
+  size?: number;
 }
 
-export function list(http: HttpClient, rootUrl: string, params?: List$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<EventResponse>>> {
+export function list(http: HttpClient, rootUrl: string, params?: List$Params, context?: HttpContext): Observable<StrictHttpResponse<EventPageResponse>> {
   const rb = new RequestBuilder(rootUrl, list.PATH, 'get');
   if (params) {
     rb.query('sport', params.sport, {});
     rb.query('status', params.status, {});
+    rb.query('page', params.page, {});
+    rb.query('size', params.size, {});
   }
 
   return http.request(
@@ -26,7 +38,7 @@ export function list(http: HttpClient, rootUrl: string, params?: List$Params, co
   ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<Array<EventResponse>>;
+      return r as StrictHttpResponse<EventPageResponse>;
     })
   );
 }

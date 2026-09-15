@@ -1,8 +1,8 @@
 package com.arena.backend.api.booking;
 
-import java.util.List;
 import java.util.UUID;
 
+import com.arena.backend.api.PaginationRequest;
 import com.arena.backend.application.booking.BookingService;
 import com.arena.backend.domain.booking.Booking;
 import com.arena.backend.domain.booking.BookingStatus;
@@ -14,12 +14,14 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,11 +45,13 @@ public class BookingController {
 	@Operation(summary = "List your bookings; administrators may request scope=all",
 			description = "Defaults to scope=mine, including for administrators. Optional eventId and status filters apply to either scope.")
 	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
-	public List<BookingResponse> list(Authentication principal,
+	public BookingPageResponse list(Authentication principal,
 			@RequestParam(defaultValue = "mine") @Pattern(regexp = "mine|all") String scope,
 			@RequestParam(required = false) UUID eventId,
-			@RequestParam(required = false) BookingStatus status) {
-		return service.list(principal, scope.equals("all"), eventId, status).stream().map(BookingMapper::toResponse).toList();
+			@RequestParam(required = false) BookingStatus status,
+			@Valid @ModelAttribute @ParameterObject PaginationRequest pagination) {
+		return new BookingPageResponse(service.list(principal, scope.equals("all"), eventId, status,
+				pagination.toPageRequest()).map(BookingMapper::toResponse));
 	}
 
 	@GetMapping("/{id}")

@@ -1,5 +1,5 @@
 <app-confirm-dialog />
-<a class="btn btn-outline btn-sm" routerLink="/events"
+<a class="btn btn-outline btn-sm" routerLink="/events" queryParamsHandling="preserve"
   ><span aria-hidden="true">←</span> All events</a
 >
 @if (loading()) {
@@ -78,11 +78,20 @@
       </div>
     </dl>
     <div class="actions">
-      <a class="btn btn-primary" routerLink="/bookings" [queryParams]="{ eventId: item.id }"
+      <a
+        class="btn btn-primary"
+        routerLink="/bookings"
+        [queryParams]="{ eventId: item.id, page: 0, size: 20 }"
+        queryParamsHandling="replace"
         >View bookings <span aria-hidden="true">↗</span></a
       >
       @if (item.status === 'SCHEDULED' && !busy()) {
-        <a class="btn btn-outline" [routerLink]="['/events', item.id, 'edit']">Edit details</a>
+        <a
+          class="btn btn-outline"
+          [routerLink]="['/events', item.id, 'edit']"
+          queryParamsHandling="preserve"
+          >Edit details</a
+        >
       }
       <button type="button" class="btn btn-outline" [disabled]="busy()" (click)="refresh()">
         Refresh

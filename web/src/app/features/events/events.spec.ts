@@ -8,6 +8,8 @@ import { EventsService } from '../../api/services/events.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { EventEditor } from './event-editor';
 import { EventDraft, EventForm, toInstant, toLocalDateTime } from './event-form';
+import { EventsList } from './events-list';
+import { EventPageResponse } from '../../api/models/event-page-response';
 
 const body: EventRequest = {
   title: 'Evening athletics',
@@ -31,6 +33,123 @@ const draft: EventDraft = {
   startsAt: toLocalDateTime(body.startsAt),
   endsAt: toLocalDateTime(body.endsAt),
 };
+
+describe('EventsList pagination', () => {
+  let queryParamMap: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let list: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn>;
+  const emptyPage: EventPageResponse = {
+    items: [],
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0,
+  };
+
+  beforeEach(() => {
+    queryParamMap = new BehaviorSubject(convertToParamMap({}));
+    list = vi.fn().mockReturnValue(of(emptyPage));
+    navigate = vi.fn().mockResolvedValue(true);
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: EventsService, useValue: { list } },
+        { provide: ActivatedRoute, useValue: { queryParamMap } },
+        { provide: Router, useValue: { navigate } },
+      ],
+    });
+  });
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('sends paging and filters to the server, retaining size and resetting page for filters', () => {
+    queryParamMap.next(
+      convertToParamMap({ page: '2', size: '10', sport: 'Tennis', status: 'LIVE' }),
+    );
+    list.mockReturnValue(
+      of({ ...emptyPage, page: 2, size: 10, items: [event], totalElements: 31, totalPages: 4 }),
+    );
+    const component = TestBed.runInInjectionContext(() => new EventsList());
+    expect(list).toHaveBeenCalledExactlyOnceWith({
+      page: 2,
+      size: 10,
+      sport: 'Tennis',
+      status: 'LIVE',
+    });
+    expect(component.events()).toEqual([event]);
+    component.goToPage(3);
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { page: 3, size: 10 }, queryParamsHandling: 'merge' }),
+    );
+    component.goToPage(1);
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { page: 1, size: 10 } }),
+    );
+    component.filter(' Athletics ', 'SCHEDULED');
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { page: 0, size: 10, sport: 'Athletics', status: 'SCHEDULED' },
+      }),
+    );
+    component.filter('', '');
+    expect(navigate).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { page: 0, size: 10, sport: null, status: null } }),
+    );
+  });
+
+  it('cancels stale page requests when navigating back or forward', () => {
+    const old = new Subject<EventPageResponse>();
+    list
+      .mockReturnValueOnce(old)
+      .mockReturnValueOnce(
+        of({ ...emptyPage, page: 1, totalPages: 2, totalElements: 21, items: [event] }),
+      );
+    const component = TestBed.runInInjectionContext(() => new EventsList());
+    queryParamMap.next(convertToParamMap({ page: '1' }));
+    expect(old.observed).toBe(false);
+    old.next(emptyPage);
+    expect(component.events()).toEqual([event]);
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, size: 20 }));
+  });
+
+  it('recovers a deleted last row on refresh, then loads the last available page', () => {
+    queryParamMap.next(convertToParamMap({ page: '2' }));
+    list.mockReturnValueOnce(
+      of({ ...emptyPage, page: 2, totalPages: 3, totalElements: 41, items: [event] }),
+    );
+    const component = TestBed.runInInjectionContext(() => new EventsList());
+    list.mockReturnValueOnce(of({ ...emptyPage, page: 2, totalPages: 2, totalElements: 40 }));
+    component.refresh();
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.objectContaining({ queryParams: { page: 1, size: 20 }, replaceUrl: true }),
+    );
+    list.mockReturnValueOnce(
+      of({ ...emptyPage, page: 1, totalPages: 2, totalElements: 40, items: [event] }),
+    );
+    queryParamMap.next(convertToParamMap({ page: '1' }));
+    expect(component.events()).toEqual([event]);
+    expect(component.loading()).toBe(false);
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers an out-of-range URL to zero without looping on an empty dataset', () => {
+    queryParamMap.next(convertToParamMap({ page: '99' }));
+    list.mockReturnValueOnce(of({ ...emptyPage, page: 99 }));
+    const component = TestBed.runInInjectionContext(() => new EventsList());
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.objectContaining({ queryParams: { page: 0, size: 20 }, replaceUrl: true }),
+    );
+    queryParamMap.next(convertToParamMap({ page: '0' }));
+    expect(component.loading()).toBe(false);
+    expect(component.events()).toEqual([]);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('EventForm', () => {
   beforeEach(() => TestBed.configureTestingModule({ imports: [EventForm] }));
@@ -189,6 +308,7 @@ describe('EventEditor shared form and drafts', () => {
       expect(sessionStorage.getItem(key)).toBeNull();
       expect(fixture.componentInstance.canLeave()).toBe(true);
       expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(['/events', event.id], {
+        queryParamsHandling: 'preserve',
         state: { notice: editing ? 'Event updated.' : 'Event created.' },
       });
     },

@@ -2,6 +2,9 @@ package com.arena.backend.api.booking;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 import com.arena.backend.PostgresTestConfiguration;
@@ -14,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -102,10 +106,10 @@ class BookingApiIntegrationTests {
 		mvc.perform(get("/api/bookings/{id}", firstId).with(access(ownerId)))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
 		mvc.perform(get("/api/bookings").with(access(ownerId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(2)))
-				.andExpect(jsonPath("$[0].id").value(secondId))
-				.andExpect(jsonPath("$[0].event.id").value(eventId.toString()))
-				.andExpect(jsonPath("$[0].status").value("CONFIRMED"));
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(2)))
+				.andExpect(jsonPath("$.items[0].id").value(secondId))
+				.andExpect(jsonPath("$.items[0].event.id").value(eventId.toString()))
+				.andExpect(jsonPath("$.items[0].status").value("CONFIRMED"));
 	}
 
 	@Test
@@ -120,7 +124,7 @@ class BookingApiIntegrationTests {
 		mvc.perform(get("/api/bookings/{id}", id).with(access(ownerId))).andExpect(status().isOk());
 		mvc.perform(get("/api/bookings/{id}", id).with(access(otherId))).andExpect(status().isNotFound());
 		mvc.perform(post("/api/bookings/{id}/cancel", id).with(access(otherId))).andExpect(status().isNotFound());
-		mvc.perform(get("/api/bookings").with(access(otherId))).andExpect(jsonPath("$").isEmpty());
+		mvc.perform(get("/api/bookings").with(access(otherId))).andExpect(jsonPath("$.items").isEmpty());
 	}
 
 	@Test
@@ -217,9 +221,12 @@ class BookingApiIntegrationTests {
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isForbidden());
 		mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
-				.andExpect(jsonPath("$.paths['/api/bookings'].get.responses['200'].content['application/json'].schema.type").value("array"))
+				.andExpect(jsonPath("$.paths['/api/bookings'].get.responses['200'].content['application/json'].schema.$ref").value("#/components/schemas/BookingPageResponse"))
+				.andExpect(jsonPath("$.components.schemas.BookingPageResponse.required").value(org.hamcrest.Matchers.containsInAnyOrder("items", "page", "size", "totalElements", "totalPages")))
+				.andExpect(jsonPath("$.components.schemas.BookingPageResponse.properties.items.items.$ref").value("#/components/schemas/BookingResponse"))
+				.andExpect(jsonPath("$.components.schemas.Participant.required").value(org.hamcrest.Matchers.containsInAnyOrder("id", "displayName")))
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].content['application/json']").exists())
-				.andExpect(jsonPath("$.components.schemas.BookingResponse.required").value(org.hamcrest.Matchers.hasItems("id", "event", "participant")))
+				.andExpect(jsonPath("$.components.schemas.BookingResponse.required").value(org.hamcrest.Matchers.containsInAnyOrder("id", "event", "status", "createdAt", "updatedAt", "participant")))
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location").exists())
 				.andExpect(jsonPath("$.components.schemas.BookingRequest.properties.userId").doesNotExist());
 	}
@@ -254,18 +261,18 @@ class BookingApiIntegrationTests {
 		book(secondEvent, otherId);
 		mvc.perform(post("/api/bookings/{id}/cancel", cancelled).with(adminAccess())).andExpect(status().isOk());
 		mvc.perform(get("/api/bookings").with(adminAccess()))
-				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
-				.andExpect(jsonPath("$[0].id").value(mine));
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(mine));
 		mvc.perform(get("/api/bookings").param("scope", "all").with(adminAccess()))
-				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(4)));
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(4)));
 		mvc.perform(get("/api/bookings").param("scope", "all").param("eventId", firstEvent.toString())
 				.param("status", "CANCELLED").with(adminAccess()))
-				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
-				.andExpect(jsonPath("$[0].id").value(cancelled));
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(cancelled));
 		mvc.perform(get("/api/bookings").param("eventId", firstEvent.toString()).param("status", "CONFIRMED")
 				.param("userId", otherId.toString()).param("isAdmin", "true").with(access(ownerId)))
-				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
-				.andExpect(jsonPath("$[0].id").value(confirmed));
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(confirmed));
 		mvc.perform(get("/api/bookings").param("scope", "all").param("isAdmin", "true").with(access(ownerId)))
 				.andExpect(status().isForbidden())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -303,6 +310,106 @@ class BookingApiIntegrationTests {
 				.andExpect(status().isNotFound());
 		mvc.perform(post("/api/bookings/{id}/cancel", UUID.randomUUID()).with(adminAccess()))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void paginatesOwnedHistoryBeforeCountingAndKeepsStableNewestFirstOrder() throws Exception {
+		List<String> tiedIds = new ArrayList<>();
+		for (int i = 0; i < 21; i++) {
+			UUID eventId = event(2);
+			tiedIds.add(book(eventId, ownerId));
+			book(eventId, otherId);
+		}
+		jdbc.update("UPDATE bookings SET created_at = ?", java.sql.Timestamp.from(NOW));
+		tiedIds.sort(Comparator.reverseOrder());
+		String newest = book(event(1), ownerId);
+		jdbc.update("UPDATE bookings SET created_at = ? WHERE id = ?",
+				java.sql.Timestamp.from(NOW.plusSeconds(1)), UUID.fromString(newest));
+		List<String> expected = new ArrayList<>();
+		expected.add(newest);
+		expected.addAll(tiedIds);
+		JsonNode first = objectMapper.readTree(mvc.perform(get("/api/bookings").with(access(ownerId)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(20)))
+				.andExpect(jsonPath("$.page").value(0)).andExpect(jsonPath("$.size").value(20))
+				.andExpect(jsonPath("$.totalElements").value(22)).andExpect(jsonPath("$.totalPages").value(2))
+				.andReturn().getResponse().getContentAsString());
+		assertThat(first.properties()).extracting(java.util.Map.Entry::getKey)
+				.containsExactlyInAnyOrder("items", "page", "size", "totalElements", "totalPages");
+		List<String> actual = new ArrayList<>();
+		first.get("items").forEach(item -> actual.add(item.get("id").asText()));
+		JsonNode second = objectMapper.readTree(mvc.perform(get("/api/bookings").with(access(ownerId)).param("page", "1"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(2)))
+				.andExpect(jsonPath("$.page").value(1)).andExpect(jsonPath("$.totalElements").value(22))
+				.andExpect(jsonPath("$.totalPages").value(2)).andReturn().getResponse().getContentAsString());
+		second.get("items").forEach(item -> actual.add(item.get("id").asText()));
+		assertThat(actual).containsExactlyElementsOf(expected);
+		mvc.perform(get("/api/bookings").with(access(ownerId)).param("page", "2"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+				.andExpect(jsonPath("$.page").value(2)).andExpect(jsonPath("$.size").value(20))
+				.andExpect(jsonPath("$.totalElements").value(22)).andExpect(jsonPath("$.totalPages").value(2));
+		mvc.perform(get("/api/bookings").with(adminAccess()).param("scope", "all").param("size", "100"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(43)))
+				.andExpect(jsonPath("$.size").value(100)).andExpect(jsonPath("$.totalElements").value(43))
+				.andExpect(jsonPath("$.totalPages").value(1));
+		mvc.perform(get("/api/bookings").with(adminAccess()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+				.andExpect(jsonPath("$.totalElements").value(0)).andExpect(jsonPath("$.totalPages").value(0));
+	}
+
+	@Test
+	void appliesScopeAndBothFiltersToPageContentAndTotals() throws Exception {
+		UUID selected = event(3);
+		String cancelled = book(selected, ownerId);
+		mvc.perform(post("/api/bookings/{id}/cancel", cancelled).with(access(ownerId))).andExpect(status().isOk());
+		String mine = book(selected, ownerId);
+		String other = book(selected, otherId);
+		book(event(1), ownerId);
+		mvc.perform(get("/api/bookings").with(access(ownerId)).param("eventId", selected.toString())
+				.param("status", "CONFIRMED").param("size", "1").param("userId", otherId.toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(mine))
+				.andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.totalPages").value(1));
+		mvc.perform(get("/api/bookings").with(adminAccess()).param("scope", "all").param("eventId", selected.toString())
+				.param("status", "CONFIRMED").param("size", "1"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(other))
+				.andExpect(jsonPath("$.totalElements").value(2)).andExpect(jsonPath("$.totalPages").value(2));
+		mvc.perform(get("/api/bookings").with(adminAccess()).param("scope", "all").param("eventId", selected.toString())
+				.param("status", "CONFIRMED").param("size", "1").param("page", "1"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(mine))
+				.andExpect(jsonPath("$.totalElements").value(2));
+		mvc.perform(get("/api/bookings").with(access(otherId)).param("eventId", selected.toString())
+				.param("status", "CANCELLED").param("page", "3").param("size", "1"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+				.andExpect(jsonPath("$.page").value(3)).andExpect(jsonPath("$.size").value(1))
+				.andExpect(jsonPath("$.totalElements").value(0)).andExpect(jsonPath("$.totalPages").value(0));
+		mvc.perform(get("/api/bookings").with(access(ownerId)).param("scope", "all").param("page", "99"))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void returnsAuthorizedTotalsForPagesBeyondJpaOffsetRange() throws Exception {
+		UUID selected = event(2);
+		book(selected, ownerId);
+		book(selected, otherId);
+		book(event(1), ownerId);
+		mvc.perform(get("/api/bookings").with(access(ownerId)).param("eventId", selected.toString())
+				.param("status", "CONFIRMED").param("page", "2147483647").param("size", "100"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+				.andExpect(jsonPath("$.page").value(Integer.MAX_VALUE)).andExpect(jsonPath("$.size").value(100))
+				.andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.totalPages").value(1));
+		mvc.perform(get("/api/bookings").with(adminAccess()).param("scope", "all").param("eventId", selected.toString())
+				.param("status", "CONFIRMED").param("page", "2147483647").param("size", "100"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty())
+				.andExpect(jsonPath("$.totalElements").value(2)).andExpect(jsonPath("$.totalPages").value(1));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"page,-1", "size,0", "size,-1", "size,101", "page,nope", "size,nope", "page,1.5", "size,1.5", "page,2147483648", "size,2147483648", "page,''", "size,''"})
+	void rejectsInvalidPaginationWithProblemDetails(String parameter, String value) throws Exception {
+		mvc.perform(get("/api/bookings").with(access(ownerId)).param(parameter, value))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(400))
+				.andExpect(jsonPath("$.errors[*].field").value(org.hamcrest.Matchers.hasItem(parameter)));
 	}
 
 	private UUID event(int capacity) {

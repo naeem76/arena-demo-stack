@@ -10,6 +10,7 @@ import { BaseService } from '../base-service';
 import { ApiConfiguration } from '../api-configuration';
 import { StrictHttpResponse } from '../strict-http-response';
 
+import { BookingPageResponse } from '../models/booking-page-response';
 import { BookingResponse } from '../models/booking-response';
 import { cancel } from '../fn/bookings/cancel';
 import { Cancel$Params } from '../fn/bookings/cancel';
@@ -43,7 +44,7 @@ export class BookingsService extends BaseService {
    *
    * This method doesn't expect any request body.
    */
-  list1$Response(params?: List1$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<BookingResponse>>> {
+  list1$Response(params?: List1$Params, context?: HttpContext): Observable<StrictHttpResponse<BookingPageResponse>> {
     const obs = list1(this.http, this.rootUrl, params, context);
     return obs;
   }
@@ -58,10 +59,10 @@ export class BookingsService extends BaseService {
    *
    * This method doesn't expect any request body.
    */
-  list1(params?: List1$Params, context?: HttpContext): Observable<Array<BookingResponse>> {
+  list1(params?: List1$Params, context?: HttpContext): Observable<BookingPageResponse> {
     const resp = this.list1$Response(params, context);
     return resp.pipe(
-      map((r: StrictHttpResponse<Array<BookingResponse>>): Array<BookingResponse> => r.body)
+      map((r: StrictHttpResponse<BookingPageResponse>): BookingPageResponse => r.body)
     );
   }
 

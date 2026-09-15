@@ -1,6 +1,5 @@
 package com.arena.backend.infrastructure.persistence.event;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -8,6 +7,9 @@ import java.util.UUID;
 import com.arena.backend.domain.event.Event;
 import com.arena.backend.domain.event.EventRepository;
 import com.arena.backend.domain.event.EventStatus;
+import com.arena.backend.infrastructure.persistence.PageQueries;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -35,8 +37,9 @@ public class EventPersistenceAdapter implements EventRepository {
 	}
 
 	@Override
-	public List<Event> findAll(String sport, EventStatus status) {
-		return repository.findAllFiltered(sport == null ? null : sport.toLowerCase(Locale.ROOT), status);
+	public Page<Event> findAll(String sport, EventStatus status, Pageable pageable) {
+		return PageQueries.fetch(pageable, request ->
+				repository.findAllFiltered(sport == null ? null : sport.toLowerCase(Locale.ROOT), status, request));
 	}
 
 	@Override

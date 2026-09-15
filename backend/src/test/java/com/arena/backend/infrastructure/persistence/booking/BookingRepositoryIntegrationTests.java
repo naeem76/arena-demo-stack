@@ -24,6 +24,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -135,5 +136,28 @@ class BookingRepositoryIntegrationTests {
 		entityManager.flush();
 		assertThatThrownBy(() -> jdbc.update("UPDATE bookings SET status = ? WHERE id = ?", "UNKNOWN", booking.getId()))
 				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void loadsOnlyTheRequestedPageAndItsToOneAssociationsFromTheDatabase() {
+		for (int i = 0; i < 3; i++) {
+			Booking booking = new Booking(event, user);
+			booking.cancel();
+			bookings.save(booking);
+		}
+		bookings.save(new Booking(event, user));
+		entityManager.flush();
+		entityManager.clear();
+
+		var page = bookings.findByUserId(user.getId(), event.getId(), BookingStatus.CANCELLED, PageRequest.of(1, 1));
+
+		assertThat(page.getContent()).hasSize(1);
+		assertThat(page.getTotalElements()).isEqualTo(3);
+		assertThat(page.getTotalPages()).isEqualTo(3);
+		assertThat(entityManager.getEntityManager().unwrap(org.hibernate.Session.class)
+				.getStatistics().getEntityCount()).isEqualTo(3);
+		entityManager.clear();
+		assertThat(page.getContent().getFirst().getEvent().getTitle()).isEqualTo("Football");
+		assertThat(page.getContent().getFirst().getUser().getDisplayName()).isEqualTo("Participant");
 	}
 }

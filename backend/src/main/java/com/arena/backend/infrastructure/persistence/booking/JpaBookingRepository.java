@@ -1,11 +1,12 @@
 package com.arena.backend.infrastructure.persistence.booking;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import com.arena.backend.domain.booking.Booking;
 import com.arena.backend.domain.booking.BookingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,8 +29,8 @@ public interface JpaBookingRepository extends JpaRepository<Booking, UUID> {
 			AND (:status IS NULL OR booking.status = :status)
 			ORDER BY booking.createdAt DESC, booking.id DESC
 			""")
-	List<Booking> findOwned(@Param("userId") UUID userId, @Param("eventId") UUID eventId,
-			@Param("status") BookingStatus status);
+	Page<Booking> findOwned(@Param("userId") UUID userId, @Param("eventId") UUID eventId,
+			@Param("status") BookingStatus status, Pageable pageable);
 
 	@EntityGraph(attributePaths = {"event", "user"})
 	@Query("""
@@ -38,7 +39,7 @@ public interface JpaBookingRepository extends JpaRepository<Booking, UUID> {
 			AND (:status IS NULL OR booking.status = :status)
 			ORDER BY booking.createdAt DESC, booking.id DESC
 			""")
-	List<Booking> findFiltered(@Param("eventId") UUID eventId, @Param("status") BookingStatus status);
+	Page<Booking> findFiltered(@Param("eventId") UUID eventId, @Param("status") BookingStatus status, Pageable pageable);
 
 	@Query("SELECT booking.event.id FROM Booking booking WHERE booking.id = :id")
 	Optional<UUID> findEventIdById(@Param("id") UUID id);

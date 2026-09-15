@@ -16,6 +16,7 @@ import { create } from '../fn/events/create';
 import { Create$Params } from '../fn/events/create';
 import { delete$ } from '../fn/events/delete';
 import { Delete$Params } from '../fn/events/delete';
+import { EventPageResponse } from '../models/event-page-response';
 import { EventResponse } from '../models/event-response';
 import { get } from '../fn/events/get';
 import { Get$Params } from '../fn/events/get';
@@ -152,7 +153,7 @@ export class EventsService extends BaseService {
    *
    * This method doesn't expect any request body.
    */
-  list$Response(params?: List$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<EventResponse>>> {
+  list$Response(params?: List$Params, context?: HttpContext): Observable<StrictHttpResponse<EventPageResponse>> {
     const obs = list(this.http, this.rootUrl, params, context);
     return obs;
   }
@@ -167,10 +168,10 @@ export class EventsService extends BaseService {
    *
    * This method doesn't expect any request body.
    */
-  list(params?: List$Params, context?: HttpContext): Observable<Array<EventResponse>> {
+  list(params?: List$Params, context?: HttpContext): Observable<EventPageResponse> {
     const resp = this.list$Response(params, context);
     return resp.pipe(
-      map((r: StrictHttpResponse<Array<EventResponse>>): Array<EventResponse> => r.body)
+      map((r: StrictHttpResponse<EventPageResponse>): EventPageResponse => r.body)
     );
   }
 

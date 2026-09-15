@@ -22,6 +22,8 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -143,16 +145,19 @@ class EventServiceTests {
 	@Test
 	void passesTrimmedFiltersToRepository() {
 		Event event = newEvent();
-		when(repository.findAll("Football", EventStatus.SCHEDULED)).thenReturn(List.of(event));
-		assertThat(service.list(" Football ", EventStatus.SCHEDULED)).containsExactly(event);
+		var pageable = PageRequest.of(2, 5);
+		var result = new PageImpl<>(List.of(event), pageable, 11);
+		when(repository.findAll("Football", EventStatus.SCHEDULED, pageable)).thenReturn(result);
+		assertThat(service.list(" Football ", EventStatus.SCHEDULED, pageable)).isSameAs(result);
 	}
 
 	@ParameterizedTest
 	@NullAndEmptySource
 	@ValueSource(strings = {" \t"})
 	void treatsBlankSportAsNoFilter(String sport) {
-		service.list(sport, null);
-		verify(repository).findAll(null, null);
+		var pageable = PageRequest.of(0, 20);
+		service.list(sport, null, pageable);
+		verify(repository).findAll(null, null, pageable);
 	}
 
 	private Event newEvent() {

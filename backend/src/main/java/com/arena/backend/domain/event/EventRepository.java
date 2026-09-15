@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 public interface EventRepository {
 
 	Event save(Event event);
@@ -13,10 +16,10 @@ public interface EventRepository {
 	Optional<Event> findByIdForUpdate(UUID id);
 
 	default List<Event> findAll() {
-		return findAll(null, null);
+		return findAll(null, null, Pageable.unpaged()).getContent();
 	}
 
-	List<Event> findAll(String sport, EventStatus status);
+	Page<Event> findAll(String sport, EventStatus status, Pageable pageable);
 
 	void deleteById(UUID id);
 }

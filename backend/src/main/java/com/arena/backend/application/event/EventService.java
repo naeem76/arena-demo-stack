@@ -2,7 +2,6 @@ package com.arena.backend.application.event;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import com.arena.backend.application.common.ResourceNotFoundException;
@@ -12,6 +11,8 @@ import com.arena.backend.domain.common.StateConflictException;
 import com.arena.backend.domain.event.Event;
 import com.arena.backend.domain.event.EventRepository;
 import com.arena.backend.domain.event.EventStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +30,9 @@ public class EventService {
 		this.clock = clock;
 	}
 
-	public List<Event> list(String sport, EventStatus status) {
+	public Page<Event> list(String sport, EventStatus status, Pageable pageable) {
 		String filter = sport == null || sport.isBlank() ? null : sport.strip();
-		return repository.findAll(filter, status);
+		return repository.findAll(filter, status, pageable);
 	}
 
 	public Event findById(UUID id) {

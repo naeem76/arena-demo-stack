@@ -7,20 +7,32 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-import { BookingResponse } from '../../models/booking-response';
+import { BookingPageResponse } from '../../models/booking-page-response';
 
 export interface List1$Params {
   scope?: string;
   eventId?: string;
   status?: 'CONFIRMED' | 'CANCELLED';
+
+/**
+ * Zero-based page number
+ */
+  page?: number;
+
+/**
+ * Maximum items per page
+ */
+  size?: number;
 }
 
-export function list1(http: HttpClient, rootUrl: string, params?: List1$Params, context?: HttpContext): Observable<StrictHttpResponse<Array<BookingResponse>>> {
+export function list1(http: HttpClient, rootUrl: string, params?: List1$Params, context?: HttpContext): Observable<StrictHttpResponse<BookingPageResponse>> {
   const rb = new RequestBuilder(rootUrl, list1.PATH, 'get');
   if (params) {
     rb.query('scope', params.scope, {});
     rb.query('eventId', params.eventId, {});
     rb.query('status', params.status, {});
+    rb.query('page', params.page, {});
+    rb.query('size', params.size, {});
   }
 
   return http.request(
@@ -28,7 +40,7 @@ export function list1(http: HttpClient, rootUrl: string, params?: List1$Params, 
   ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<Array<BookingResponse>>;
+      return r as StrictHttpResponse<BookingPageResponse>;
     })
   );
 }

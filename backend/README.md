@@ -32,7 +32,7 @@ events additionally require `ADMIN`.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/events` | List events; optional `sport` and `status` filters |
+| GET | `/api/events` | Page through events; optional `sport` and `status` filters |
 | GET | `/api/events/{id}` | Read one event |
 | POST | `/api/events` | Create; returns `201` and a `Location` header |
 | PUT | `/api/events/{id}` | Replace editable details; returns `200` |
@@ -57,7 +57,63 @@ timestamps, and initial `SCHEDULED` status:
 Use future dates when creating an event. Times are ISO-8601 instants; `description`
 is optional. Status changes use a separate body, for example `{"status":"LIVE"}`.
 Sport filtering is case-insensitive and ignores surrounding whitespace. Status
-filters use the enum names. Lists are ordered by start time and then ID.
+filters use the enum names. Lists are ordered by start time ascending and then UUID
+ascending. See **Pagination** below for the shared list response contract.
+
+### Pagination
+
+`GET /api/events` and `GET /api/bookings` accept:
+
+| Parameter | Default | Accepted values |
+| --- | --- | --- |
+| `page` | `0` | Zero-based, nonnegative integer |
+| `size` | `20` | Integer from `1` through `100` |
+
+Invalid bounds, blank/nonnumeric/fractional values, and values outside the Java
+integer range return `400 application/problem+json` through the existing error
+handler, with pagination field errors. Omitting a parameter applies its default;
+an explicitly blank value is invalid. Clients cannot choose a different sort order.
+
+Both endpoints now return an object instead of a bare array:
+
+```json
+{
+  "items": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+All five properties are required. `items` contains the existing Event or Booking
+response DTOs. `totalElements` counts all matching, authorized records before
+pagination; `totalPages` is the ceiling of that count divided by `size`. A page
+beyond the matching results returns `200` with empty `items`, the requested
+`page` and `size`, and the correct totals. No matches means both totals are zero.
+
+Filtering and booking ownership are applied in the database before offset/limit
+and counting, so totals do not disclose other users' records. Stable UUID
+tie-breakers make ordering deterministic for unchanged data; separate page
+requests do not provide a snapshot across concurrent inserts/deletes.
+
+The generated OpenAPI schemas are **`EventPageResponse`** and
+**`BookingPageResponse`**, matching the frontend contract. Their `items` reference
+`EventResponse` and `BookingResponse`, with required item fields preserved (Event
+`description` remains optional and nullable). Internal services/repositories use
+Spring Data `Page`/`Pageable` pragmatically; the HTTP boundary maps into explicit
+DTOs using shared `PageResponse` metadata, never Spring `Page` serialization.
+
+```text
+GET /api/events?sport=Football&status=SCHEDULED&page=0&size=20
+GET /api/bookings?scope=all&status=CONFIRMED&page=1&size=10
+```
+
+The shared `api/PaginationRequest` query DTO centralizes defaults, Bean Validation
+bounds, and `toPageRequest()`. Controllers bind it using `@Valid @ModelAttribute`;
+`@ParameterObject` exposes flat optional `page` and `size` query parameters in
+OpenAPI, including defaults and minimum/maximum values. Resource-specific filters
+remain separate controller parameters.
 
 ### Business rules
 
@@ -81,7 +137,7 @@ event row used by reservation transactions.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/bookings` | List personal booking history by default; admins can request `scope=all` |
+| GET | `/api/bookings` | Page through personal booking history by default; admins can request `scope=all` |
 | GET | `/api/bookings/{id}` | Read a booking as its owner or an admin |
 | POST | `/api/bookings` | Reserve one place; returns `201` and `Location` |
 | POST | `/api/bookings/{id}/cancel` | Cancel as the owner or an admin; returns `200` |
@@ -93,17 +149,17 @@ All operations require `api.access` and a recognized role. Ordinary users receiv
 
 Listing defaults to `scope=mine` for **both** roles. Only admins may request
 `scope=all`; a regular user receives `403`. Both modes accept optional `eventId`
-and `status=CONFIRMED|CANCELLED` filters and return newest first, with ID as a
-tie-breaker. For example:
+and `status=CONFIRMED|CANCELLED` filters and return creation time descending, with
+UUID descending as a tie-breaker. For example:
 
 ```text
 GET /api/bookings?scope=all&eventId=<event-uuid>&status=CONFIRMED
 ```
 
-Lists currently return all matching records without pagination, consistent with
-the assessment's small dataset. Responses include a `participant` summary with
-only the user's `id` and `displayName`, alongside the existing Event and booking
-fields. No user entity, password hash or account role is serialized.
+Both listing modes use the shared **Pagination** contract above. Responses include
+a `participant` summary with only the user's `id` and `displayName`, alongside the
+existing Event and booking fields. No user entity, password hash or account role
+is serialized.
 
 The service uses the verified caller's authorities to choose an unrestricted
 primary-key lookup for admins or an owner-scoped lookup for users. Admin access
@@ -169,9 +225,10 @@ Subsequent schema changes belong in new versioned migrations; applied migrations
 should not be edited. Historical event times are valid persisted data.
 
 `EventRepository` exposes save, find-by-ID, list, and delete-by-ID operations.
-`EventPersistenceAdapter` implements that contract through `JpaEventRepository`,
-keeping Spring Data-specific operations inside infrastructure. Entity fields are
-validated on persistence, and database constraints also protect direct SQL writes.
+`EventPersistenceAdapter` implements that contract through `JpaEventRepository`.
+Spring Data page types are shared internally; query execution remains in
+infrastructure. Entity fields are validated on persistence, and database
+constraints also protect direct SQL writes.
 
 PostgreSQL-backed tests verify CRUD, filtering, UUID generation, audit timestamps,
 status mapping, schema constraints, and HTTP contracts. Unit tests verify the

@@ -155,6 +155,7 @@ export class EventEditor {
           this.dirty.set(false);
           this.removeDraft();
           void this.router.navigate(['/events', event.id], {
+            queryParamsHandling: 'preserve',
             state: { notice: id ? 'Event updated.' : 'Event created.' },
           });
         },
@@ -193,7 +194,9 @@ export class EventEditor {
     this.removeDraft();
     this.dirty.set(false);
     this.saved = true;
-    void this.router.navigate(this.id() ? ['/events', this.id()] : ['/events']);
+    void this.router.navigate(this.id() ? ['/events', this.id()] : ['/events'], {
+      queryParamsHandling: 'preserve',
+    });
   }
 
   @HostListener('window:beforeunload', ['$event'])

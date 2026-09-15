@@ -1,8 +1,8 @@
 package com.arena.backend.api.event;
 
-import java.util.List;
 import java.util.UUID;
 
+import com.arena.backend.api.PaginationRequest;
 import com.arena.backend.application.event.EventService;
 import com.arena.backend.domain.event.Event;
 import com.arena.backend.domain.event.EventStatus;
@@ -14,10 +14,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,10 +44,11 @@ public class EventController {
 	@GetMapping
 	@Operation(summary = "List events, optionally filtering by sport and status")
 	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
-	public List<EventResponse> list(
+	public EventPageResponse list(
 			@RequestParam(required = false) @Size(max = Event.MAX_SPORT_LENGTH) String sport,
-			@RequestParam(required = false) EventStatus status) {
-		return service.list(sport, status).stream().map(EventMapper::toResponse).toList();
+			@RequestParam(required = false) EventStatus status,
+			@Valid @ModelAttribute @ParameterObject PaginationRequest pagination) {
+		return new EventPageResponse(service.list(sport, status, pagination.toPageRequest()).map(EventMapper::toResponse));
 	}
 
 	@GetMapping("/{id}")

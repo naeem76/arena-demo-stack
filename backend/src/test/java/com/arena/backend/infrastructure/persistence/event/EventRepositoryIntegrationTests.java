@@ -22,6 +22,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -171,13 +172,13 @@ class EventRepositoryIntegrationTests {
 
 		assertThat(repository.findAll()).extracting(Event::getId)
 				.containsExactly(basketball.getId(), scheduled.getId(), live.getId());
-		assertThat(repository.findAll("fOoTbAlL", null)).extracting(Event::getId)
+		assertThat(repository.findAll("fOoTbAlL", null, PageRequest.of(0, 20))).extracting(Event::getId)
 				.containsExactly(scheduled.getId(), live.getId());
-		assertThat(repository.findAll(null, EventStatus.LIVE)).extracting(Event::getId)
+		assertThat(repository.findAll(null, EventStatus.LIVE, PageRequest.of(0, 20))).extracting(Event::getId)
 				.containsExactly(live.getId());
-		assertThat(repository.findAll("Football", EventStatus.SCHEDULED)).extracting(Event::getId)
+		assertThat(repository.findAll("Football", EventStatus.SCHEDULED, PageRequest.of(0, 20))).extracting(Event::getId)
 				.containsExactly(scheduled.getId());
-		assertThat(repository.findAll("Tennis", null)).isEmpty();
+		assertThat(repository.findAll("Tennis", null, PageRequest.of(0, 20))).isEmpty();
 	}
 
 	@Test
@@ -185,6 +186,23 @@ class EventRepositoryIntegrationTests {
 		assertThat(jdbc.queryForObject(
 				"SELECT count(*) FROM flyway_schema_history WHERE version = '1' AND success = true", Integer.class))
 				.isEqualTo(1);
+	}
+
+	@Test
+	void loadsOnlyTheRequestedPageFromTheDatabase() {
+		for (int i = 0; i < 3; i++) {
+			repository.save(newEvent("Football " + i));
+		}
+		entityManager.flush();
+		entityManager.clear();
+
+		var page = repository.findAll("Football", EventStatus.SCHEDULED, PageRequest.of(1, 1));
+
+		assertThat(page.getContent()).hasSize(1);
+		assertThat(page.getTotalElements()).isEqualTo(3);
+		assertThat(page.getTotalPages()).isEqualTo(3);
+		assertThat(entityManager.getEntityManager().unwrap(org.hibernate.Session.class)
+				.getStatistics().getEntityCount()).isEqualTo(1);
 	}
 
 	private Event newEvent(String title) {

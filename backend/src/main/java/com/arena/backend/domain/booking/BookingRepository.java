@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 public interface BookingRepository {
 
 	Booking save(Booking booking);
@@ -17,12 +20,12 @@ public interface BookingRepository {
 	Optional<UUID> findEventIdByIdAndUserId(UUID id, UUID userId);
 
 	default List<Booking> findByUserId(UUID userId) {
-		return findByUserId(userId, null, null);
+		return findByUserId(userId, null, null, Pageable.unpaged()).getContent();
 	}
 
-	List<Booking> findByUserId(UUID userId, UUID eventId, BookingStatus status);
+	Page<Booking> findByUserId(UUID userId, UUID eventId, BookingStatus status, Pageable pageable);
 
-	List<Booking> findAll(UUID eventId, BookingStatus status);
+	Page<Booking> findAll(UUID eventId, BookingStatus status, Pageable pageable);
 
 	boolean existsByEventId(UUID eventId);
 
