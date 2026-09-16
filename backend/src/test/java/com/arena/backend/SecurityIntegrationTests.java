@@ -71,7 +71,6 @@ class SecurityIntegrationTests {
 	private static final String ISSUER = "http://localhost:8080";
 	private static final String REDIRECT_URI = ISSUER + "/scalar";
 	private static final String WEB_ORIGIN = "http://localhost:4200";
-	private static final String WEB_REDIRECT_URI = WEB_ORIGIN + "/auth/callback";
 	private static final String VERIFIER = "a".repeat(64);
 
 	@Autowired
@@ -324,10 +323,10 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"scalar,openid api.access", "scalar,openid profile api.access",
-			"arena-web,openid profile api.access"})
-	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String clientId, String scopes) throws Exception {
-		String redirectUri = clientId.equals("arena-web") ? WEB_REDIRECT_URI : REDIRECT_URI;
+	@CsvSource({"scalar,openid api.access,http://localhost:8080/scalar", "scalar,openid profile api.access,http://localhost:8080/scalar",
+			"arena-web,openid profile api.access,http://localhost:4200/auth/callback",
+			"arena-mobile,openid profile api.access,com.arena.mobile:/oauth/callback"})
+	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String clientId, String scopes, String redirectUri) throws Exception {
 		JsonNode tokens = objectMapper.readTree(exchange(
 				authorize(scopes, login(), clientId, redirectUri), VERIFIER, clientId, redirectUri)
 				.andExpect(status().isOk())
@@ -347,6 +346,11 @@ class SecurityIntegrationTests {
 		assertThat(idToken.getExpiresAt()).isAfter(Instant.now());
 		assertThat(idToken.getClaims()).doesNotContainKeys("password", "passwordHash", "scope");
 		var accessJwt = jwtDecoder.decode(accessToken);
+		assertThat(accessJwt.getIssuer().toString()).isEqualTo(ISSUER);
+		assertThat(accessJwt.getClaimAsStringList("scope")).containsExactlyInAnyOrder(scopes.split(" "));
+		assertThat(tokens.get("scope").asText().split(" ")).containsExactlyInAnyOrder(scopes.split(" "));
+		assertThat(accessJwt.getClaimAsStringList("roles")).containsExactly("USER");
+		assertThat(idToken.getClaims()).doesNotContainKey("roles");
 		assertThat(Duration.between(accessJwt.getIssuedAt(), accessJwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
 		JsonNode userInfo = objectMapper.readTree(mvc.perform(get("/userinfo")
 				.header(HttpHeaders.ORIGIN, WEB_ORIGIN)
@@ -434,68 +438,109 @@ class SecurityIntegrationTests {
 				.andExpect(header().string(HttpHeaders.LOCATION, containsString("error=invalid_scope")));
 	}
 
-	@Test
-	void angularClientRejectsUnregisteredAuthorizationRedirect() throws Exception {
+	@ParameterizedTest
+	@CsvSource({"arena-web,http://localhost:4200/unregistered",
+			"arena-mobile,com.arena.mobile:/oauth/callback/",
+			"arena-mobile,com.arena.mobile://oauth/callback",
+			"arena-mobile,http://localhost:4200/auth/callback"})
+	void publicClientRejectsUnregisteredAuthorizationRedirect(String clientId, String redirectUri) throws Exception {
 		mvc.perform(get("/oauth2/authorize").session(login())
-				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
-				.queryParam("redirect_uri", WEB_ORIGIN + "/unregistered").queryParam("scope", "openid profile api.access")
+				.queryParam("client_id", clientId).queryParam("response_type", "code")
+				.queryParam("redirect_uri", redirectUri).queryParam("scope", "openid profile api.access")
 				.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", "S256"))
 				.andExpect(status().isBadRequest())
 				.andExpect(header().doesNotExist(HttpHeaders.LOCATION));
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"", "plain"})
-	void angularClientRequiresS256Challenge(String method) throws Exception {
+	@CsvSource({"arena-web,http://localhost:4200/auth/callback,''", "arena-web,http://localhost:4200/auth/callback,plain",
+			"arena-mobile,com.arena.mobile:/oauth/callback,''", "arena-mobile,com.arena.mobile:/oauth/callback,plain"})
+	void publicClientRequiresS256Challenge(String clientId, String redirectUri, String method) throws Exception {
 		var request = get("/oauth2/authorize").session(login())
-				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
-				.queryParam("redirect_uri", WEB_REDIRECT_URI).queryParam("scope", "openid profile api.access");
+				.queryParam("client_id", clientId).queryParam("response_type", "code")
+				.queryParam("redirect_uri", redirectUri).queryParam("scope", "openid profile api.access");
 		if (!method.isEmpty()) {
 			request.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", method);
 		}
 		String redirect = mvc.perform(request).andExpect(status().isFound())
 				.andReturn().getResponse().getRedirectedUrl();
-		assertThat(redirect).startsWith(WEB_REDIRECT_URI + "?");
+		assertThat(redirect).startsWith(redirectUri + "?");
 		var parameters = UriComponentsBuilder.fromUriString(redirect).build().getQueryParams();
 		assertThat(parameters.getFirst("error")).isEqualTo("invalid_request");
 		assertThat(parameters).doesNotContainKey("code");
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"", "incorrect-verifier"})
-	void angularClientRejectsMissingOrWrongVerifier(String verifier) throws Exception {
-		String code = authorize("openid profile api.access", login(), "arena-web", WEB_REDIRECT_URI);
-		exchange(code, verifier, "arena-web", WEB_REDIRECT_URI).andExpect(status().isBadRequest());
+	@CsvSource({"arena-web,http://localhost:4200/auth/callback,''", "arena-web,http://localhost:4200/auth/callback,incorrect-verifier",
+			"arena-mobile,com.arena.mobile:/oauth/callback,''", "arena-mobile,com.arena.mobile:/oauth/callback,incorrect-verifier"})
+	void publicClientRejectsMissingOrWrongVerifier(String clientId, String redirectUri, String verifier) throws Exception {
+		String code = authorize("openid profile api.access", login(), clientId, redirectUri);
+		exchange(code, verifier, clientId, redirectUri).andExpect(status().isBadRequest());
 	}
 
-	@Test
-	void angularRpLogoutValidatesRedirectAndInvalidatesLoginSession() throws Exception {
+	@ParameterizedTest
+	@CsvSource({"arena-web,http://localhost:4200/auth/callback,http://localhost:4200/signed-out",
+			"arena-mobile,com.arena.mobile:/oauth/callback,com.arena.mobile:/signed-out"})
+	void rpLogoutValidatesRedirectAndInvalidatesLoginSession(String clientId, String redirectUri, String logoutUri) throws Exception {
 		MockHttpSession session = login();
-		String code = authorize("openid profile api.access", session, "arena-web", WEB_REDIRECT_URI);
-		JsonNode tokens = objectMapper.readTree(exchange(code, VERIFIER, "arena-web", WEB_REDIRECT_URI)
+		String code = authorize("openid profile api.access", session, clientId, redirectUri);
+		JsonNode tokens = objectMapper.readTree(exchange(code, VERIFIER, clientId, redirectUri)
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
 		String idToken = tokens.get("id_token").asText();
 		mvc.perform(get("/connect/logout").session(session)
 				.queryParam("id_token_hint", idToken)
-				.queryParam("post_logout_redirect_uri", WEB_ORIGIN + "/unregistered"))
+				.queryParam("post_logout_redirect_uri", logoutUri + "/"))
 				.andExpect(status().isBadRequest())
 				.andExpect(header().doesNotExist(HttpHeaders.LOCATION));
 		assertThat(session.isInvalid()).isFalse();
 		// The rejected logout must leave the real login usable for authorization.
-		authorize("openid profile api.access", session, "arena-web", WEB_REDIRECT_URI);
+		authorize("openid profile api.access", session, clientId, redirectUri);
 		mvc.perform(get("/connect/logout").session(session)
 				.queryParam("id_token_hint", idToken)
-				.queryParam("post_logout_redirect_uri", WEB_ORIGIN + "/signed-out")
+				.queryParam("post_logout_redirect_uri", logoutUri)
 				.queryParam("state", "logout-state"))
 				.andExpect(status().isFound())
-				.andExpect(header().string(HttpHeaders.LOCATION, WEB_ORIGIN + "/signed-out?state=logout-state"));
+				.andExpect(header().string(HttpHeaders.LOCATION, logoutUri + "?state=logout-state"));
 		assertThat(session.isInvalid()).isTrue();
 		mvc.perform(get("/oauth2/authorize").accept(MediaType.TEXT_HTML)
-				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
-				.queryParam("redirect_uri", WEB_REDIRECT_URI).queryParam("scope", "openid profile api.access")
+				.queryParam("client_id", clientId).queryParam("response_type", "code")
+				.queryParam("redirect_uri", redirectUri).queryParam("scope", "openid profile api.access")
 				.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", "S256"))
 				.andExpect(status().isFound())
 				.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost/login"));
+	}
+
+	@Test
+	void lanEndpointAliasDoesNotChangeDiscoveryIssuer() throws Exception {
+		assertThat(securityProperties.issuer()).isEqualTo(ISSUER);
+		mvc.perform(get("/.well-known/openid-configuration")
+				.with(request -> {
+					request.setServerName("192.168.1.42");
+					request.setServerPort(8080);
+					return request;
+				}).header(HttpHeaders.HOST, "192.168.1.42:8080"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.issuer").value(ISSUER))
+				.andExpect(jsonPath("$.authorization_endpoint").value(ISSUER + "/oauth2/authorize"))
+				.andExpect(jsonPath("$.token_endpoint").value(ISSUER + "/oauth2/token"))
+				.andExpect(jsonPath("$.userinfo_endpoint").value(ISSUER + "/userinfo"))
+				.andExpect(jsonPath("$.end_session_endpoint").value(ISSUER + "/connect/logout"));
+	}
+
+	@Test
+	void userInfoRejectsTamperedMobileAccessToken() throws Exception {
+		String redirectUri = "com.arena.mobile:/oauth/callback";
+		JsonNode tokens = objectMapper.readTree(exchange(
+				authorize("openid profile api.access", login(), "arena-mobile", redirectUri),
+				VERIFIER, "arena-mobile", redirectUri)
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		String token = tokens.get("access_token").asText();
+		mvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+				.andExpect(status().isOk());
+		String[] parts = token.split("\\.");
+		parts[2] = (parts[2].startsWith("a") ? "b" : "a") + parts[2].substring(1);
+		mvc.perform(get("/userinfo").header(HttpHeaders.AUTHORIZATION, "Bearer " + String.join(".", parts)))
+				.andExpect(status().isUnauthorized());
 	}
 
 	private MockHttpSession login() throws Exception {

@@ -87,7 +87,11 @@ public class AuthorizationServerConfiguration {
 				.redirectUri(properties.webOrigin() + "/auth/callback")
 				.postLogoutRedirectUri(properties.webOrigin() + "/signed-out")
 				.build();
-		return new InMemoryRegisteredClientRepository(scalar, web);
+		RegisteredClient mobile = publicClient("arena-mobile", "arena-mobile", "Arena Flutter app")
+				.redirectUri("com.arena.mobile:/oauth/callback")
+				.postLogoutRedirectUri("com.arena.mobile:/signed-out")
+				.build();
+		return new InMemoryRegisteredClientRepository(scalar, web, mobile);
 	}
 
 	private RegisteredClient.Builder publicClient(String id, String clientId, String clientName) {

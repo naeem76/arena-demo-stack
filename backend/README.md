@@ -24,6 +24,62 @@ coordinate repository operations and invoke entity business methods. Shared
 invalid-input, state-conflict, and not-found exceptions are mapped centrally to
 Problem Details responses.
 
+## Request failure observability
+
+`web/RequestLoggingFilter` is registered for servlet `REQUEST` and `ERROR`
+dispatches at `Ordered.HIGHEST_PRECEDENCE`, outside Spring Security. This closes
+logging gaps for browser, OAuth, CSRF, and security-filter failures that never
+reach MVC's `ApiExceptionHandler`.
+
+- Each request receives a new server-generated UUID in `X-Request-ID`; incoming
+  IDs are ignored. The ID is retained across ERROR dispatches and installed in
+  MDC as `requestId` during each dispatch, then the previous MDC value is restored.
+- The failure summary includes method, original path, status, request ID, and
+  source (`REQUEST`, `ERROR`, or `escaped_exception`). IDs are explicit in the
+  message, so the default logging pattern needs no change.
+- HTTP 4xx summaries use WARN and 5xx use ERROR. Successful responses and redirects
+  do not emit failure summaries; this is not an authentication-event audit log.
+- `sendError` summaries are deferred to the container's ERROR dispatch, using
+  `jakarta.servlet.error.request_uri` and `jakarta.servlet.error.status_code` rather
+  than merely `/error`. Escaping exceptions are logged immediately as 500 and
+  rethrown unchanged. Request-scoped state limits this filter to one failure
+  summary, including repeated/nested ERROR dispatches.
+- The filter never reads/logs query parameters, request bodies, authorization
+  headers, cookies, or exception messages/causes/stack traces. Paths are limited
+  to 512 characters, stripped at `?` defensively, and whitespace/control/non-ASCII
+  characters are replaced with `_` to prevent log injection. Methods are likewise
+  sanitized and limited to 16 characters. Keep credentials out of URL paths.
+- Existing `ApiExceptionHandler` 5xx stack-trace logging remains in place. This
+  filter does not change other framework/container logging or provide distributed
+  tracing, async completion tracking, or OpenTelemetry instrumentation.
+
+`RequestLoggingIntegrationTests` uses real embedded Tomcat and PostgreSQL to
+exercise security rejection, OAuth token errors, unmapped paths, and actual
+container ERROR dispatches. `RequestLoggingFilterTests` covers exception redaction,
+ID reuse, MDC cleanup, original error attributes, bounds, and duplicate suppression.
+Both capture Logback events to validate correlation and secret-sentinel exclusion.
+
+Live checks against `http://localhost:8080` (inspect `X-Request-ID` in the response
+and match it to the backend log):
+
+| Request | Expected result |
+| --- | --- |
+| `GET /actuator/health` | 200, fresh ID, no failure summary |
+| `GET /api/events` without bearer credentials | 401 summary |
+| `POST /login` without CSRF | 403 with original `/login` in ERROR summary |
+| `GET /scalar/unmapped-observability-check` | 404 summary |
+| `POST /oauth2/token` without client credentials or grant parameters | 401 summary |
+| `GET /oauth2/authorize` without authorization parameters | 400 summary |
+
+The 500 servlet used by integration tests is test-only. For the observed browser
+403, direct form login with no saved authorization request is tested separately:
+it defaults to `/`, which the existing browser security chain denies. Starting an
+OAuth flow first supplies a saved authorization request; visiting `/login` directly
+is not equivalent. No success redirect or authorization rules are changed here.
+An anonymous GET `/` redirects to login rather than returning the authenticated
+user's 403. These checks explain that specific direct-login case, not every possible
+Angular/Flutter callback failure.
+
 ## Event API
 
 All endpoints require a bearer token with `api.access` and a `USER` or `ADMIN`
@@ -292,8 +348,8 @@ These protocol endpoints are supplied by Spring Security filters. In Scalar they
 are represented by the `arenaOAuth` security scheme, rather than duplicate
 controller definitions.
 
-The `scalar` and `arena-web` clients are public and require authorization code +
-PKCE (SHA-256). Neither has a client secret. Access tokens last 15 minutes; refresh tokens and the
+The `scalar`, `arena-web`, and `arena-mobile` clients are public and require authorization code +
+PKCE (SHA-256). None has a client secret. Access tokens last 15 minutes; refresh tokens and the
 password/client-credentials grants are not configured.
 
 `arena-web` is the Angular client, with registered scopes `openid`, `profile`, and
@@ -359,6 +415,28 @@ To exercise a real authorization failure, sign in as `demo` with `api.access`
 and try creating an event or listing `/api/bookings?scope=all`; both return `403`.
 When switching accounts in Scalar, sign out of the Spring browser session first
 using `/logout`, then authorize again with the other account.
+
+### Native client authentication
+
+`arena-mobile` is the Flutter native client, registered through the same public-client
+factory with `openid`, `profile`, and `api.access`. Its server-managed redirect URIs
+are exact constants:
+
+- Authorization callback: `com.arena.mobile:/oauth/callback`
+- Post-logout redirect: `com.arena.mobile:/signed-out`
+
+Use the existing authorization-code flow with an S256 PKCE challenge and verifier.
+For sign-out, use `/connect/logout` with the issued `id_token_hint`, the exact
+post-logout URI above, and optional `state`. Unregistered redirect URIs are rejected.
+
+For the selected **debug-only LAN HTTP** Flutter flow, Flutter discovers the backend
+via mDNS and supplies reachable endpoint aliases through AppAuth's manual
+`serviceConfiguration`. Flutter decides the debug transport configuration. These
+LAN URLs are connection endpoints, not additional issuer identities:
+`AUTH_ISSUER_URI` stays fixed at the configured localhost issuer (default
+`http://localhost:8080`), including discovery metadata and token `iss` claims.
+The backend retains single-issuer validation; its issuer and Angular registration
+do not change to match the phone's discovered LAN address.
 
 ### Local configuration and lifecycle
 
