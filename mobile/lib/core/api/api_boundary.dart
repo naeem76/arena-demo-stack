@@ -1,13 +1,17 @@
 import 'package:arena_api/arena_api.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_error.dart';
+import '../auth.dart';
 
 /// Install once on the Dio passed to ArenaApi. No logging or retry interceptors.
 class ApiBoundaryInterceptor extends Interceptor {
   ApiBoundaryInterceptor({
     required String apiBaseUrl,
     required this.accessToken,
+    this.onUnauthorized,
+    this.debug = kDebugMode,
   }) : _base = Uri.parse(apiBaseUrl) {
     if (!_base.hasAuthority ||
         !const {'http', 'https'}.contains(_base.scheme) ||
@@ -20,6 +24,8 @@ class ApiBoundaryInterceptor extends Interceptor {
 
   final Uri _base;
   final String? Function() accessToken;
+  final void Function(String token)? onUnauthorized;
+  final bool debug;
 
   String get _apiPath => '${_base.path.replaceFirst(RegExp(r'/+$'), '')}/api';
 
@@ -29,6 +35,24 @@ class ApiBoundaryInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    try {
+      requireSafeOrigin(_base.origin, debug: debug);
+      requireSafeOrigin(options.uri.origin, debug: debug);
+    } catch (_) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: ApiError('HTTPS is required.'),
+        ),
+      );
+      return;
+    }
+    for (final key
+        in options.headers.keys
+            .where((key) => key.toLowerCase() == 'authorization')
+            .toList()) {
+      options.headers.remove(key);
+    }
     if (_isApi(options.uri)) {
       final token = accessToken();
       if (token != null && token.isNotEmpty) {
@@ -42,6 +66,7 @@ class ApiBoundaryInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    _unauthorized(response.statusCode, response.requestOptions);
     final request = response.requestOptions;
     final status = response.statusCode ?? 0;
     final path = request.uri.path;
@@ -65,17 +90,38 @@ class ApiBoundaryInterceptor extends Interceptor {
     }
     handler.next(response);
   }
+
+  void _unauthorized(int? status, RequestOptions request) {
+    final header = request.headers['Authorization'];
+    if (status == 401 &&
+        _isApi(request.uri) &&
+        header is String &&
+        header.startsWith('Bearer ')) {
+      onUnauthorized?.call(header.substring(7));
+    }
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _unauthorized(err.response?.statusCode, err.requestOptions);
+    handler.next(err);
+  }
 }
 
 /// Use the generated APIs directly; map caught errors with describeApiError.
 ArenaApi createArenaApi({
   required String apiBaseUrl,
   required String? Function() accessToken,
+  void Function(String token)? onUnauthorized,
 }) {
   return ArenaApi(
     basePathOverride: apiBaseUrl,
     interceptors: [
-      ApiBoundaryInterceptor(apiBaseUrl: apiBaseUrl, accessToken: accessToken),
+      ApiBoundaryInterceptor(
+        apiBaseUrl: apiBaseUrl,
+        accessToken: accessToken,
+        onUnauthorized: onUnauthorized,
+      ),
     ],
   );
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:arena_api/arena_api.dart';
 import 'package:arena_mobile/app.dart';
 import 'package:arena_mobile/core/api_discovery.dart';
 import 'package:arena_mobile/core/app_providers.dart';
@@ -8,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'core/api/api_boundary_test.dart' show StubAdapter;
+import 'app_fakes.dart';
+import 'auth_fakes.dart';
 
 class FakeDiscovery implements ApiDiscovery {
   final result = Completer<ApiEndpoint>();
@@ -26,6 +29,9 @@ class FakeDiscovery implements ApiDiscovery {
 }
 
 void main() {
+  late ArenaApi api;
+  setUp(() => api = emptyAppApi());
+  tearDown(() => api.dio.close(force: true));
   testWidgets('explicit configuration skips discovery entirely', (
     tester,
   ) async {
@@ -33,6 +39,10 @@ void main() {
       ProviderScope(
         overrides: [
           configuredApiUrlProvider.overrideWithValue('http://10.0.0.9:9000'),
+          arenaApiProvider.overrideWithValue(api),
+          authProvider.overrideWith(
+            () => SignedInController(origin: 'http://10.0.0.9:9000'),
+          ),
           apiDiscoveryProvider.overrideWith(
             (ref) => throw StateError('Must not browse'),
           ),
@@ -63,6 +73,10 @@ void main() {
         ProviderScope(
           overrides: [
             configuredApiUrlProvider.overrideWithValue(null),
+            arenaApiProvider.overrideWithValue(api),
+            authProvider.overrideWith(
+              () => SignedInController(origin: endpoint.url),
+            ),
             apiDiscoveryProvider.overrideWith((ref) {
               ref.onDispose(fake.dispose);
               return fake;
@@ -91,7 +105,7 @@ void main() {
           apiEndpointProvider.overrideWith(
             (ref) => ApiEndpoint('http://10.0.0.2:9000', source, 'test'),
           ),
-          accessTokenProvider.overrideWithValue('existing-session'),
+          authProvider.overrideWith(() => SignedInController()),
         ],
       );
       await container.read(apiEndpointProvider.future);
@@ -111,7 +125,7 @@ void main() {
       );
       expect(
         adapter.requests.single.headers['Authorization'],
-        source == EndpointSource.mdns ? isNull : 'Bearer existing-session',
+        'Bearer existing-session',
       );
     });
   }

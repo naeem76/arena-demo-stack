@@ -11,7 +11,8 @@ strings so the generator can process them.
 `.openapi-generator/` are generator-owned. Do not edit them manually.
 `test/contract_test.dart`, this document, `.gitignore`, and
 `.openapi-generator-ignore` are authored and preserved across regeneration.
-The lockfile and generated `.g.dart` files are committed for app consumption.
+The lockfile pins package dependencies, and generated `.g.dart` serializers are
+included for app consumption.
 
 ## Reproduce and verify
 
@@ -44,12 +45,12 @@ update dependencies, remove the package lockfile, regenerate, and review the dif
 
 The mobile app consumes this package through a path dependency. Its own lockfile
 governs app dependency resolution; this package's lock governs isolated generator
-checks. Both the Docker Dart SDK and Flutter 3.47.4's bundled Dart 3.13.3 have
-passed the package contract tests.
+checks.
 
 Use the mobile application's `arenaApiProvider`. It configures the API origin,
 shared response guard and callback-based bearer handling, and owns Dio disposal.
-Authentication integration will supply the token through `accessTokenProvider`.
+The bearer callback reads `authProvider.notifier.tokenFor(origin)`; matching-token
+401 responses invalidate the session through the same controller.
 Generated client methods are used directly, without one-to-one repository wrappers.
 
 - Events: `list`, `callGet`, `create`, `update`, `changeStatus`, `delete`.
@@ -76,14 +77,13 @@ this package is not a complete JSON Schema validator.
 
 ## Verification policy
 
-The **13 contract tests** use actual generated APIs and Dio with an HTTP adapter
+Contract tests use actual generated APIs and Dio with an HTTP adapter
 stub. They cover nullable descriptions, nested pages, enums/dates, pagination,
 write requests, Location headers, bodyless 204 and HTTP 400/401/409 responses.
-Fresh offline regeneration is deterministic.
 
-`dart analyze --no-fatal-warnings` retains two visible generated unused-import
-warnings, while keeping analyzer errors fatal. Authored tests are explicitly
-analyzed strictly because generated analysis settings exclude them. The mobile
+`dart analyze --no-fatal-warnings` allows generated warnings while keeping
+analyzer errors fatal. Authored tests are explicitly analyzed strictly because
+generated analysis settings exclude them. The mobile
 application also has strict analysis and tests for its handwritten boundaries.
-The generator still labels its general OpenAPI 3.1 support beta; the tested
-contract needs no compatibility conversion.
+The generator labels its general OpenAPI 3.1 support beta; generation uses the
+shared contract without a compatibility conversion.

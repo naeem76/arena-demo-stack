@@ -9,6 +9,8 @@ import 'package:arena_mobile/core/app_providers.dart';
 import 'package:arena_mobile/core/api/api_boundary.dart';
 import 'package:arena_mobile/core/api/api_error.dart';
 
+import '../../auth_fakes.dart';
+
 class StubAdapter implements HttpClientAdapter {
   StubAdapter(this.body, {this.status = 200, this.failure});
 
@@ -60,7 +62,9 @@ void main() {
         configuredApiUrlProvider.overrideWithValue(
           'https://configured.arena.test',
         ),
-        accessTokenProvider.overrideWithValue('session-token'),
+        authProvider.overrideWith(
+          () => SignedInController(origin: 'https://configured.arena.test'),
+        ),
       ],
     );
     await container.read(apiEndpointProvider.future);
@@ -80,7 +84,7 @@ void main() {
     expect(adapter.requests.single.uri.host, 'configured.arena.test');
     expect(
       adapter.requests.single.headers['Authorization'],
-      'Bearer session-token',
+      'Bearer existing-session',
     );
   });
 
@@ -197,6 +201,15 @@ void main() {
         '/service/api-extra',
         '/api/x',
       ]) {
+        if (path.startsWith('http:')) {
+          final count = adapter.requests.length;
+          await expectLater(
+            api.dio.get<Object?>(path),
+            throwsA(isA<DioException>()),
+          );
+          expect(adapter.requests.length, count);
+          continue;
+        }
         await api.dio.get<Object?>(
           Uri.parse('https://arena.test').resolve(path).toString(),
         );

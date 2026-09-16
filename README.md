@@ -1,13 +1,13 @@
-# Arena Assessment
+# Arena
 
-This repository contains the Arena full-stack developer assessment: a Spring Boot
-backend, Angular administration SPA, and Flutter mobile foundation.
+Arena is an event and booking administration application with a Spring Boot
+backend, Angular administration SPA, and Flutter mobile administration app.
 
 The Angular app supports complete Event CRUD, lifecycle management and cross-user
 booking inspection/cancellation, backed by database-persisted users and OAuth2/OIDC
 login. Angular and Flutter generate their API clients from the same OpenAPI
-snapshot. Flutter currently provides the application shell and API integration
-foundation; mobile authentication and CRUD screens are still pending.
+snapshot. Flutter provides native administrator sign-in,
+session handling, full Event CRUD and booking inspection/cancellation.
 
 ## Run locally
 
@@ -52,7 +52,7 @@ and `AUTH_ISSUER_URI` with the externally reachable URLs.
 The backend's published port binds to `0.0.0.0` so devices on the local network
 can reach it. The `mdns` service advertises `_arena-api._tcp.local.` with the host's
 LAN address, published backend port, and API metadata. PostgreSQL and Angular
-retain their existing loopback bindings.
+bind to loopback.
 
 The advertiser uses Linux host networking for local multicast. The phone must
 be on a network that permits mDNS traffic between it and the development host.
@@ -65,8 +65,9 @@ MDNS_ADDRESS=192.168.1.50 docker compose up --build --wait
 
 Flutter checks for the service at startup unless an explicit `API_BASE_URL` is
 provided. Discovery supplies an API address; it does not configure HTTPS or
-change the backend's OIDC issuer and callback settings. Native authentication
-configuration remains a separate step.
+change the backend's OIDC issuer and callback settings. Debug mobile sign-in
+connects through the discovered address while retaining the canonical issuer;
+HTTPS deployment configuration remains a separate step.
 
 ## Angular development
 
@@ -92,7 +93,7 @@ npm test
 npm run build
 ```
 
-Builds regenerate the typed API client from the committed OpenAPI snapshot, so
+Builds regenerate the typed API client from the shared OpenAPI snapshot, so
 they do not require a running backend. To refresh the snapshot and regenerate:
 
 ```sh
@@ -100,7 +101,7 @@ API_BASE_URL=http://localhost:8080 npm run update:api
 ```
 
 See [web application](web/README.md) for structure, authentication, runtime
-configuration, testing and trade-offs.
+configuration and testing.
 
 ## Flutter development
 
@@ -108,9 +109,11 @@ The mobile project targets Android and iOS. Use the Flutter SDK version pinned i
 `mobile/.flutter-version`; Flutter includes the matching Dart SDK. Android builds
 also require the Android SDK, and iOS builds require macOS and Xcode.
 
-See [mobile foundation](mobile/README.md) for setup, generated API tooling,
-verification commands, and the current implementation scope. Physical-phone
-HTTPS/network configuration will be added with mobile authentication.
+See [mobile application](mobile/README.md) for setup, generated API tooling,
+test commands and supported workflows. Android debug builds
+support LAN HTTP sign-in using discovered or explicitly configured endpoint addresses;
+the backend's canonical issuer remains unchanged. Release/profile authentication
+requires HTTPS and normal discovery.
 
 ## Backend development
 
@@ -150,7 +153,7 @@ against a disposable PostgreSQL instance managed by Testcontainers. They do not
 use the Compose database. Docker image builds skip test execution; run the
 verification command above separately.
 
-See [backend API foundation](backend/README.md) for Scalar sign-in instructions,
+See [backend API](backend/README.md) for Scalar sign-in instructions,
 error conventions, CORS configuration, and the opt-in diagnostic controller.
 
 The authenticated Event and Booking APIs are available at `/api/events` and

@@ -85,8 +85,9 @@ reauthorization. Roles are server-managed and enforced by Spring on every API ca
 
 ## Generated API contracts
 
-`contracts/openapi.json`, `ng-openapi-gen.json`, the npm lockfile and generated
-`src/app/api/` are committed. Do not hand-edit generated files.
+`contracts/openapi.json` is the shared API snapshot; `ng-openapi-gen.json`
+configures generation into `src/app/api/`. The npm lockfile pins dependencies.
+Do not hand-edit generated files.
 
 ```sh
 # Export the live backend specification, then regenerate.
@@ -115,7 +116,8 @@ by the **browser**, not Docker service names. Configuration is served without
 caching; hashed assets can be cached independently.
 
 The root Compose stack passes `WEB_ORIGIN` to Spring for exact callback registration
-and CORS. All containers expose ports on loopback for local assessment use.
+and CORS. Angular and PostgreSQL expose ports on loopback; the backend binds to
+`0.0.0.0` for mobile LAN access. The mDNS advertiser uses Linux host networking.
 
 ## Verification
 
@@ -135,10 +137,10 @@ it, then delete it with confirmation. Use another event for booking history:
 reserve via a participant API client, inspect and cancel from the web app, and
 observe the backend's restriction against deleting events with booking history.
 
-## Deliberate trade-offs
+## UI architecture and constraints
 
-- Per-feature components and framework facilities keep the assessment small;
-  there is no global domain-data store or generic schema-driven form engine.
+- Feature components own domain data and forms; there is no global domain-data
+  store or generic schema-driven form engine.
 - daisyUI provides CSS styling; Angular and native HTML handle behavior. Dialogs
   use native modal focus handling, labels are explicit, and motion respects the
   reduced-motion preference. Fonts are bundled locally.

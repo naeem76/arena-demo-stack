@@ -1,4 +1,4 @@
-# Backend API foundation
+# Arena backend API
 
 See the [root README](../README.md) for build and startup instructions.
 
@@ -27,8 +27,8 @@ Problem Details responses.
 ## Request failure observability
 
 `web/RequestLoggingFilter` is registered for servlet `REQUEST` and `ERROR`
-dispatches at `Ordered.HIGHEST_PRECEDENCE`, outside Spring Security. This closes
-logging gaps for browser, OAuth, CSRF, and security-filter failures that never
+dispatches at `Ordered.HIGHEST_PRECEDENCE`, outside Spring Security. It logs
+browser, OAuth, CSRF, and security-filter failures even when they do not
 reach MVC's `ApiExceptionHandler`.
 
 - Each request receives a new server-generated UUID in `X-Request-ID`; incoming
@@ -49,7 +49,7 @@ reach MVC's `ApiExceptionHandler`.
   to 512 characters, stripped at `?` defensively, and whitespace/control/non-ASCII
   characters are replaced with `_` to prevent log injection. Methods are likewise
   sanitized and limited to 16 characters. Keep credentials out of URL paths.
-- Existing `ApiExceptionHandler` 5xx stack-trace logging remains in place. This
+- `ApiExceptionHandler` also logs 5xx stack traces. This
   filter does not change other framework/container logging or provide distributed
   tracing, async completion tracking, or OpenTelemetry instrumentation.
 
@@ -71,14 +71,10 @@ and match it to the backend log):
 | `POST /oauth2/token` without client credentials or grant parameters | 401 summary |
 | `GET /oauth2/authorize` without authorization parameters | 400 summary |
 
-The 500 servlet used by integration tests is test-only. For the observed browser
-403, direct form login with no saved authorization request is tested separately:
-it defaults to `/`, which the existing browser security chain denies. Starting an
-OAuth flow first supplies a saved authorization request; visiting `/login` directly
-is not equivalent. No success redirect or authorization rules are changed here.
-An anonymous GET `/` redirects to login rather than returning the authenticated
-user's 403. These checks explain that specific direct-login case, not every possible
-Angular/Flutter callback failure.
+The 500 servlet used by integration tests is test-only. Direct form login with no
+saved authorization request defaults to `/`, which the browser security chain
+denies for authenticated users with `403`. Start an OAuth flow from a client to
+supply a saved authorization request. An anonymous GET `/` redirects to login.
 
 ## Event API
 
@@ -130,7 +126,7 @@ integer range return `400 application/problem+json` through the existing error
 handler, with pagination field errors. Omitting a parameter applies its default;
 an explicitly blank value is invalid. Clients cannot choose a different sort order.
 
-Both endpoints now return an object instead of a bare array:
+Both endpoints return a page object:
 
 ```json
 {
@@ -258,9 +254,8 @@ reservations, duplicate requests, capacity reductions, and repeated cancellation
 
 ## Event persistence
 
-`Event` is both the domain model and JPA-mapped entity. A separate persistence
-model would duplicate its current fields without providing a useful mapping
-boundary. Future API request/response DTOs will define the external contract.
+`Event` is both the domain model and JPA-mapped entity. API request/response DTOs
+define the external contract independently of the persistence model.
 
 | Field | Storage and constraints |
 | --- | --- |
@@ -315,7 +310,7 @@ user UUID; the username remains the login identifier.
 
 Disabling an account prevents new password logins. Previously issued JWTs retain
 their normal lifetime. User registration and profile-management endpoints are
-not part of this persistence step.
+not exposed by the API.
 
 ## API documentation
 
@@ -384,9 +379,9 @@ without `openid` continue to work and do not receive an ID token or UserInfo acc
 - Missing or invalid bearer tokens produce `401`; missing scope or role produces `403`.
 - Documentation and health endpoints remain public.
 
-One API scope keeps the assessment's permission model simple. Roles and ownership
+The `api.access` scope grants API access. Roles and ownership
 determine permitted operations; separate read-only client delegation is not
-provided. The former `api.read` and `api.write` scopes are no longer registered.
+provided.
 Account role changes affect newly issued tokens; existing tokens retain their
 claims until expiry or backend restart.
 
@@ -429,8 +424,8 @@ Use the existing authorization-code flow with an S256 PKCE challenge and verifie
 For sign-out, use `/connect/logout` with the issued `id_token_hint`, the exact
 post-logout URI above, and optional `state`. Unregistered redirect URIs are rejected.
 
-For the selected **debug-only LAN HTTP** Flutter flow, Flutter discovers the backend
-via mDNS and supplies reachable endpoint aliases through AppAuth's manual
+For **debug-only LAN HTTP** authentication, Flutter uses a discovered or explicitly
+configured backend address and supplies reachable endpoint aliases through AppAuth's manual
 `serviceConfiguration`. Flutter decides the debug transport configuration. These
 LAN URLs are connection endpoints, not additional issuer identities:
 `AUTH_ISSUER_URI` stays fixed at the configured localhost issuer (default
