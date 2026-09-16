@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/app_providers.dart';
 import 'features/bookings/bookings_screen.dart';
 import 'features/events/events_screen.dart';
 
-class ArenaApp extends StatelessWidget {
+class ArenaApp extends ConsumerWidget {
   const ArenaApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final endpoint = ref.watch(apiEndpointProvider);
+
     final colors =
         ColorScheme.fromSeed(
           seedColor: const Color(0xFF006E54),
@@ -25,27 +29,40 @@ class ArenaApp extends StatelessWidget {
       title: 'Arena Admin',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorScheme: colors),
-      home: const _AdminShell(),
+      home: endpoint.isLoading
+          ? const Scaffold(body: Center(child: Text('Looking for local API…')))
+          : const _AdminShell(),
     );
   }
 }
 
-class _AdminShell extends StatefulWidget {
+class _AdminShell extends ConsumerStatefulWidget {
   const _AdminShell();
 
   @override
-  State<_AdminShell> createState() => _AdminShellState();
+  ConsumerState<_AdminShell> createState() => _AdminShellState();
 }
 
-class _AdminShellState extends State<_AdminShell> {
+class _AdminShellState extends ConsumerState<_AdminShell> {
   int _selectedIndex = 0;
 
   void _showAccount() {
+    final endpoint = ref.read(apiEndpointProvider).asData?.value;
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Account'),
-        content: const Text('Sign-in is not configured yet.'),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Sign-in is not configured yet.'),
+            const SizedBox(height: 12),
+            Text(ref.read(apiBaseUrlProvider)),
+            if (endpoint != null)
+              Text('${endpoint.source.name}: ${endpoint.detail}'),
+          ],
+        ),
         scrollable: true,
         actions: [
           TextButton(

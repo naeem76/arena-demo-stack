@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:arena_mobile/app.dart';
+import 'package:arena_mobile/core/app_providers.dart';
 
 Finder appBarTitle(String title) =>
     find.descendant(of: find.byType(AppBar), matching: find.text(title));
@@ -9,11 +10,23 @@ Finder appBarTitle(String title) =>
 Finder destination(String label) =>
     find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
 
+Future<void> pumpApp(WidgetTester tester) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        configuredApiUrlProvider.overrideWithValue('http://localhost:8080'),
+      ],
+      child: const ArenaApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('starts on Events and switches between feature placeholders', (
     tester,
   ) async {
-    await tester.pumpWidget(const ArenaApp());
+    await pumpApp(tester);
 
     expect(appBarTitle('Events'), findsOneWidget);
     expect(find.text('Events unavailable'), findsOneWidget);
@@ -39,7 +52,7 @@ void main() {
   testWidgets('Account explains sign-in state and closes on the current tab', (
     tester,
   ) async {
-    await tester.pumpWidget(const ArenaApp());
+    await pumpApp(tester);
     await tester.tap(destination('Bookings'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Account'));
@@ -65,7 +78,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-      await tester.pumpWidget(const ArenaApp());
+      await pumpApp(tester);
       await tester.pumpAndSettle();
       expect(find.text('Events unavailable').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);

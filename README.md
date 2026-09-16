@@ -47,6 +47,27 @@ these ports. Open the web app using `localhost`, matching the registered origin.
 For custom hostnames, configure `WEB_ORIGIN`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL`
 and `AUTH_ISSUER_URI` with the externally reachable URLs.
 
+## Local API discovery
+
+The backend's published port binds to `0.0.0.0` so devices on the local network
+can reach it. The `mdns` service advertises `_arena-api._tcp.local.` with the host's
+LAN address, published backend port, and API metadata. PostgreSQL and Angular
+retain their existing loopback bindings.
+
+The advertiser uses Linux host networking for local multicast. The phone must
+be on a network that permits mDNS traffic between it and the development host.
+`MDNS_ADDRESS` can select a particular host LAN IPv4 address when automatic
+interface selection is unsuitable, for example with multiple network adapters:
+
+```sh
+MDNS_ADDRESS=192.168.1.50 docker compose up --build --wait
+```
+
+Flutter checks for the service at startup unless an explicit `API_BASE_URL` is
+provided. Discovery supplies an API address; it does not configure HTTPS or
+change the backend's OIDC issuer and callback settings. Native authentication
+configuration remains a separate step.
+
 ## Angular development
 
 Prerequisite: Node.js 24.15+ (24.x); `.nvmrc` pins 24.19.0. From `web/`:

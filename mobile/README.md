@@ -4,8 +4,8 @@ Flutter foundation for the Android/iOS administration app.
 
 Implemented: Events/Bookings tabs, retained tab widgets, account placeholder,
 Riverpod dependency wiring, generated API client, scoped bearer-token attachment,
-page-response validation, and shared API errors. The shell makes no network
-requests and contains no sample records.
+page-response validation, shared API errors, and bounded native mDNS startup
+discovery. The shell makes no API requests and contains no sample records.
 
 Mobile OIDC, secure token storage, CRUD screens, Load more, filters and persistent
 drafts are subsequent milestones. The Account action currently explains that
@@ -40,17 +40,46 @@ require Docker, a generator run, or a running backend.
 
 ## Configuration
 
-The API origin comes from `API_BASE_URL`, defaulting to `http://localhost:8080`:
+An explicit `API_BASE_URL` skips discovery entirely:
 
 ```sh
 flutter run --dart-define=API_BASE_URL=http://localhost:18080
 ```
 
-This example addresses a backend on the same host. On a physical phone,
-`localhost` refers to the phone. Device-reachable HTTPS and native OIDC callback
-configuration will be added with authentication; the foundation does not enable
-cleartext exceptions or embed credentials. The shell can be tested without API
-connectivity.
+Without that define, startup shows “Looking for local API…” while `nsd` **5.0.1**
+browses `_arena-api._tcp` for up to three seconds, including native startup and
+resolution (`autoResolve: true`, `IpLookupType.any`). The advertisement contract is
+`_arena-api._tcp.local.`, a per-host SRV name such as
+`arena-api-192-168-20-199.local.`, the backend's port, a real LAN
+IPv4 address, and TXT `scheme=http`, `path=/api`, `apiVersion=1`.
+
+Only matching services with valid ports and private/link-local IPv4 addresses
+are eligible. Selection is hostname-agnostic and uses the resolved addresses.
+The client uses `http://<IPv4>:<port>`;
+the generated client already supplies `/api`. This avoids a second `.local`
+hostname lookup when making API requests.
+
+Exactly one distinct candidate URL at the deadline is selected. No results,
+malformed/foreign advertisements, multiple candidates, permission denial, plugin
+failure, or startup timeout fall back to `http://localhost:8080`. Multiple
+candidates are reported rather than arbitrarily selected. Account shows the URL,
+source (`configured`, `mdns`, or `fallback`) and selection reason. Discovery
+listeners detach on completion/disposal and native stop is attempted without
+blocking startup; a native start completing late is also stopped.
+
+A discovered URL is a **connection candidate, not an authenticated identity**.
+For `mdns` endpoints, Riverpod disables the current access-token callback even if
+an existing token is supplied. Explicit configuration preserves existing scoped
+auth behavior. The auth issuer is still localhost and needs later device-reachable
+configuration and session-to-issuer binding; mobile sign-in is not implemented.
+
+On a physical phone, `localhost` refers to the phone. iOS declares
+`NSLocalNetworkUsageDescription` and `NSBonjourServices`; Android declares Internet
+and Wi-Fi multicast permissions. No blanket HTTP cleartext/ATS exceptions are
+enabled. Resolving an HTTP candidate does not establish that native policy allows
+subsequent HTTP API/auth requests. Device-reachable HTTPS and native OIDC callback
+configuration remain subsequent work. Discovery requires local-network access and
+multicast reachability; physical-device Bonjour/NSD behavior has not been verified.
 
 ## Structure and state
 
@@ -60,6 +89,7 @@ lib/
   app.dart                 Material theme and two-tab shell
   core/
     app_providers.dart     API configuration, token seam and client ownership
+    api_discovery.dart     Bounded native NSD adapter and endpoint selection
     api/                   HTTP boundary and presentation-safe errors
   features/
     events/                Events screen
@@ -127,6 +157,10 @@ The APK is written to `build/app/outputs/flutter-apk/app-debug.apk`.
 Widget tests cover tab navigation, Account dismissal, and 375px layouts at normal
 and doubled text scale. API tests use HTTP adapter stubs with the actual generated
 client to verify malformed pages, bearer scoping, error masking, field errors and
-Riverpod overrides. The package's separate contract tests cover serialization,
+Riverpod overrides. Startup tests cover explicit override bypass, discovery,
+malformed/foreign results, ambiguity, timeout, plugin failures, listener cleanup,
+late native startup, disposal, and suppression of existing tokens for discovered
+endpoints. Platform calls are replaced by injected fakes in tests. The package's
+separate contract tests cover serialization,
 pagination, write requests and 204/error responses. These tests do not claim to
 verify live mobile OIDC or physical-device networking.

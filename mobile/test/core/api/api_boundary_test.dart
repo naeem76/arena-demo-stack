@@ -57,10 +57,13 @@ void main() {
   test('Riverpod wiring uses the configured API and session token', () async {
     final container = ProviderContainer.test(
       overrides: [
-        apiBaseUrlProvider.overrideWithValue('https://configured.arena.test'),
+        configuredApiUrlProvider.overrideWithValue(
+          'https://configured.arena.test',
+        ),
         accessTokenProvider.overrideWithValue('session-token'),
       ],
     );
+    await container.read(apiEndpointProvider.future);
     final api = container.read(arenaApiProvider);
     final adapter = StubAdapter({
       'items': [],

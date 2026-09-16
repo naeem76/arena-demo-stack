@@ -35,7 +35,7 @@ services:
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-arena-admin}
       SEED_DEMO_USER: ${SEED_DEMO_USER:-true}
     ports:
-      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+      - "0.0.0.0:${BACKEND_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +62,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  mdns:
+    build:
+      context: ./infra/mdns
+    network_mode: host
+    environment:
+      BACKEND_PORT: ${BACKEND_PORT:-8080}
+      MDNS_ADDRESS: ${MDNS_ADDRESS:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "advertise.py", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
       start_period: 10s
 
 volumes:
