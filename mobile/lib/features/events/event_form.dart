@@ -11,60 +11,7 @@ import '../../shared/confirm_action.dart';
 import '../../shared/page_title.dart';
 import '../../shared/feedback_panel.dart';
 import '../../shared/local_time.dart';
-
-const eventTextLimits = {
-  'title': 150,
-  'sport': 50,
-  'location': 200,
-  'description': 2000,
-};
-Map<String, String> validateEventValues(
-  Map<String, dynamic> values, {
-  required bool creating,
-  DateTime? now,
-}) {
-  final errors = <String, String>{};
-  for (final entry in eventTextLimits.entries) {
-    final text = (values[entry.key] as String? ?? '').trim();
-    if (entry.key != 'description' && text.isEmpty) {
-      errors[entry.key] = 'Required';
-    }
-    if (text.length > entry.value) {
-      errors[entry.key] = 'Use at most ${entry.value} characters';
-    }
-  }
-  final capacity = int.tryParse(values['capacity'] as String? ?? '');
-  if (capacity == null || capacity < 1 || capacity > 2147483647) {
-    errors['capacity'] = capacity != null && capacity > 2147483647
-        ? 'Use 2,147,483,647 or fewer places'
-        : 'Enter a whole number of at least 1';
-  }
-  final start = DateTime.tryParse(values['startsAt'] as String? ?? '');
-  final end = DateTime.tryParse(values['endsAt'] as String? ?? '');
-  if (start == null) {
-    errors['startsAt'] = 'Choose a start date and time';
-  } else if (creating && !start.isAfter(now ?? DateTime.now())) {
-    errors['startsAt'] = 'Start must be in the future';
-  }
-  if (end == null) {
-    errors['endsAt'] = 'Choose an end date and time';
-  } else if (start != null && !end.isAfter(start)) {
-    errors['endsAt'] = 'End must be after start';
-  }
-  return errors;
-}
-
-EventRequest eventRequestFromValues(Map<String, dynamic> values) =>
-    EventRequest(
-      (b) => b
-        ..title = (values['title'] as String).trim()
-        ..sport = (values['sport'] as String).trim()
-        ..location = (values['location'] as String).trim()
-        ..description = (values['description'] as String? ?? '').trim()
-        ..capacity = int.parse(values['capacity'] as String)
-        ..startsAt = DateTime.parse(values['startsAt'] as String).toUtc()
-        ..endsAt = DateTime.parse(values['endsAt'] as String).toUtc(),
-    );
+import 'event_data.dart';
 
 class EventFormScreen extends ConsumerStatefulWidget {
   const EventFormScreen({super.key, this.event});
@@ -86,6 +33,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
       _busy = false,
       _closed = false,
       _allowPop = false;
+  bool _discardRequested = false;
   bool _discarding = false;
   String get _eventKey => widget.event?.id ?? 'new';
   Map<String, dynamic> get _values => {
@@ -182,8 +130,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
 
   Future<void> _save() async {
     if (_busy || _closed || !_authorized()) return;
-    if (widget.event != null &&
-        widget.event!.status != EventResponseStatusEnum.SCHEDULED) {
+    if (widget.event != null && !canEditEvent(widget.event!.status)) {
       setState(() => _message = 'Only scheduled events can be edited.');
       return;
     }
@@ -239,24 +186,25 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
 
   Future<void> _discard() async {
     if (_busy) return;
-    await _flush();
-    if (!mounted) return;
-    if (!await confirmAction(
-      context,
-      title: 'Discard event draft?',
-      message: 'Your unsaved changes will be permanently removed.',
-      confirmLabel: 'Discard',
-      destructive: true,
-    )) {
-      return;
-    }
-    if (!mounted) return;
-    _timer?.cancel();
     setState(() {
       _busy = true;
-      _discarding = true;
+      _discardRequested = true;
     });
     try {
+      await _flush();
+      if (!mounted) return;
+      if (!await confirmAction(
+        context,
+        title: 'Discard event draft?',
+        message: 'Your unsaved changes will be permanently removed.',
+        confirmLabel: 'Discard',
+        destructive: true,
+      )) {
+        return;
+      }
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() => _discarding = true);
       if (_owner != null) await _store.remove(_owner!, _eventKey);
       if (!mounted) return;
       final saved = _closed;
@@ -274,6 +222,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
       if (mounted) {
         setState(() {
           _busy = false;
+          _discardRequested = false;
           _discarding = false;
         });
       }
@@ -427,7 +376,9 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
                   const SizedBox(height: 8),
                   FilledButton(
                     onPressed: _busy || _closed ? null : _save,
-                    child: Text(_busy ? 'Saving…' : 'Save'),
+                    child: Text(
+                      _busy && !_discardRequested ? 'Saving…' : 'Save',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
@@ -435,7 +386,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
                       foregroundColor: Theme.of(context).colorScheme.error,
                     ),
                     onPressed: _busy ? null : _discard,
-                    child: const Text('Discard'),
+                    child: Text(_discarding ? 'Discarding…' : 'Discard'),
                   ),
                 ],
               ),

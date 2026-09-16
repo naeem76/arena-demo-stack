@@ -11,6 +11,7 @@ import '../../shared/status_badge.dart';
 import '../../shared/detail_section.dart';
 import '../../shared/local_time.dart';
 import 'event_form.dart';
+import 'event_data.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   const EventDetailScreen({
@@ -77,16 +78,19 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     return false;
   }
 
-  Future<void> _mutate(String? status) async {
+  Future<void> _mutate(EventStatusRequestStatusEnum? status) async {
     if (_busy || !_authorized()) return;
     final confirmed = await confirmAction(
       context,
-      title: status == null ? 'Delete event?' : 'Change status to $status?',
+      title: status == null
+          ? 'Delete event?'
+          : 'Change status to ${status.name}?',
       message: status == null
           ? 'This permanently deletes the event. Events with booking history cannot be deleted.'
           : 'This lifecycle change cannot be undone.',
       confirmLabel: status == null ? 'Delete' : 'Change status',
-      destructive: status == null || status == 'CANCELLED',
+      destructive:
+          status == null || status == EventStatusRequestStatusEnum.CANCELLED,
     );
     if (!mounted || !confirmed || !_authorized() || _busy) return;
     setState(() {
@@ -104,9 +108,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
       } else {
         final event = (await api.changeStatus(
           id: _event.id,
-          eventStatusRequest: EventStatusRequest(
-            (b) => b..status = EventStatusRequestStatusEnum.valueOf(status),
-          ),
+          eventStatusRequest: EventStatusRequest((b) => b..status = status),
         )).data!;
         if (mounted) {
           setState(() {
@@ -126,9 +128,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   }
 
   Future<void> _edit() async {
-    if (!_authorized() ||
-        _busy ||
-        _event.status != EventResponseStatusEnum.SCHEDULED) {
+    if (!_authorized() || _busy || !canEditEvent(_event.status)) {
       return;
     }
     final changed = await Navigator.push<bool>(
@@ -145,11 +145,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   Widget build(BuildContext context) {
     final canAct =
         !_busy && _loadError == null && ref.watch(authProvider).session != null;
-    final transitions = switch (_event.status.name) {
-      'SCHEDULED' => ['LIVE', 'CANCELLED'],
-      'LIVE' => ['COMPLETED', 'CANCELLED'],
-      _ => <String>[],
-    };
+    final transitions = allowedEventTransitions(_event.status);
     return PopScope(
       canPop: _allowPop,
       onPopInvokedWithResult: (didPop, result) {
@@ -195,7 +191,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (_event.status == EventResponseStatusEnum.SCHEDULED)
+                        if (canEditEvent(_event.status))
                           FilledButton.icon(
                             onPressed: canAct ? _edit : null,
                             icon: const Icon(Icons.edit_outlined),
@@ -243,7 +239,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: OutlinedButton(
-                          style: status == 'CANCELLED'
+                          style:
+                              status == EventStatusRequestStatusEnum.CANCELLED
                               ? OutlinedButton.styleFrom(
                                   foregroundColor: Theme.of(context)
                                       .colorScheme
@@ -254,7 +251,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                                 )
                               : null,
                           onPressed: canAct ? () => _mutate(status) : null,
-                          child: Text('Change to $status'),
+                          child: Text('Change to ${status.name}'),
                         ),
                       ),
                     TextButton(

@@ -1,7 +1,27 @@
-import 'package:arena_mobile/features/events/event_form.dart';
+import 'package:arena_api/arena_api.dart';
+import 'package:arena_mobile/features/events/event_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('event policy limits edits and lifecycle transitions', () {
+    expect(canEditEvent(EventResponseStatusEnum.SCHEDULED), isTrue);
+    expect(allowedEventTransitions(EventResponseStatusEnum.SCHEDULED), [
+      EventStatusRequestStatusEnum.LIVE,
+      EventStatusRequestStatusEnum.CANCELLED,
+    ]);
+    expect(canEditEvent(EventResponseStatusEnum.LIVE), isFalse);
+    expect(allowedEventTransitions(EventResponseStatusEnum.LIVE), [
+      EventStatusRequestStatusEnum.COMPLETED,
+      EventStatusRequestStatusEnum.CANCELLED,
+    ]);
+    for (final status in [
+      EventResponseStatusEnum.COMPLETED,
+      EventResponseStatusEnum.CANCELLED,
+    ]) {
+      expect(canEditEvent(status), isFalse);
+      expect(allowedEventTransitions(status), isEmpty);
+    }
+  });
   Map<String, dynamic> values() => {
     'title': ' Title ',
     'sport': ' Tennis ',
