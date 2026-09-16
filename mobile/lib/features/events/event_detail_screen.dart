@@ -8,6 +8,8 @@ import '../../shared/confirm_action.dart';
 import '../../shared/feedback_panel.dart';
 import '../../shared/page_title.dart';
 import '../../shared/status_badge.dart';
+import '../../shared/detail_section.dart';
+import '../../shared/local_time.dart';
 import 'event_form.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
@@ -84,6 +86,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           ? 'This permanently deletes the event. Events with booking history cannot be deleted.'
           : 'This lifecycle change cannot be undone.',
       confirmLabel: status == null ? 'Delete' : 'Change status',
+      destructive: status == null || status == 'CANCELLED',
     );
     if (!mounted || !confirmed || !_authorized() || _busy) return;
     setState(() {
@@ -162,80 +165,131 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             icon: Icons.event_outlined,
           ),
         ),
-        body: !_loaded
-            ? Center(
-                child: _loadError != null
-                    ? FeedbackPanel(
-                        title: 'Unable to load event',
-                        message: _loadError,
-                        onRetry: _busy ? null : _load,
-                      )
-                    : const CircularProgressIndicator(
-                        semanticsLabel: 'Loading event',
+        body: SafeArea(
+          child: !_loaded
+              ? Center(
+                  child: _loadError != null
+                      ? FeedbackPanel(
+                          title: 'Unable to load event',
+                          message: _loadError,
+                          onRetry: _busy ? null : _load,
+                        )
+                      : const CircularProgressIndicator(
+                          semanticsLabel: 'Loading event',
+                        ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Text(
+                      _event.title,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: StatusBadge(status: _event.status.name),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (_event.status == EventResponseStatusEnum.SCHEDULED)
+                          FilledButton.icon(
+                            onPressed: canAct ? _edit : null,
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit'),
+                          ),
+                        if (widget.onViewBookings != null)
+                          OutlinedButton(
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    Navigator.pop(context, _changed);
+                                    widget.onViewBookings!(_event);
+                                  },
+                            child: const Text('View bookings'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    DetailSection(
+                      title: 'Event information',
+                      facts: {
+                        'Sport': _event.sport,
+                        'Location': _event.location,
+                        'Description':
+                            _event.description?.trim().isNotEmpty == true
+                            ? _event.description!
+                            : 'No description provided.',
+                      },
+                    ),
+                    DetailSection(
+                      title: 'Schedule & capacity',
+                      facts: {
+                        'Start (local)': localTime(context, _event.startsAt),
+                        'End (local)': localTime(context, _event.endsAt),
+                        'Total capacity': '${_event.capacity}',
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Manage event',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    for (final status in transitions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OutlinedButton(
+                          style: status == 'CANCELLED'
+                              ? OutlinedButton.styleFrom(
+                                  foregroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .error,
+                                  side: BorderSide(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                )
+                              : null,
+                          onPressed: canAct ? () => _mutate(status) : null,
+                          child: Text('Change to $status'),
+                        ),
                       ),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    _event.title,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: StatusBadge(status: _event.status.name),
-                  ),
-                  for (final entry in {
-                    'ID': _event.id,
-                    'Sport': _event.sport,
-                    'Location': _event.location,
-                    'Description': _event.description ?? '—',
-                    'Start (local)': _event.startsAt.toLocal().toString(),
-                    'End (local)': _event.endsAt.toLocal().toString(),
-                    'Total capacity': '${_event.capacity}',
-                    'Created': _event.createdAt.toLocal().toString(),
-                    'Updated': _event.updatedAt.toLocal().toString(),
-                  }.entries)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(entry.key),
-                      subtitle: SelectableText(entry.value),
-                    ),
-                  if (widget.onViewBookings != null)
-                    OutlinedButton(
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              Navigator.pop(context, _changed);
-                              widget.onViewBookings!(_event);
-                            },
-                      child: const Text('View bookings'),
-                    ),
-                  if (_event.status == EventResponseStatusEnum.SCHEDULED)
-                    FilledButton(
-                      onPressed: canAct ? _edit : null,
-                      child: const Text('Edit'),
-                    ),
-                  for (final status in transitions)
-                    OutlinedButton(
-                      onPressed: canAct ? () => _mutate(status) : null,
-                      child: Text('Change to $status'),
-                    ),
-                  TextButton(
-                    onPressed: canAct ? () => _mutate(null) : null,
-                    child: const Text('Delete event'),
-                  ),
-                  if (_actionError != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Text(_actionError!),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
                       ),
+                      onPressed: canAct ? () => _mutate(null) : null,
+                      child: const Text('Delete event'),
                     ),
-                  if (_busy) const Center(child: CircularProgressIndicator()),
-                ],
-              ),
+                    if (_actionError != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _actionError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_busy) const Center(child: CircularProgressIndicator()),
+                    const SizedBox(height: 16),
+                    DetailSection(
+                      title: 'Record details',
+                      facts: {
+                        'ID': _event.id,
+                        'Created': localTime(context, _event.createdAt),
+                        'Updated': localTime(context, _event.updatedAt),
+                      },
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

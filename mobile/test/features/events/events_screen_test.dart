@@ -71,7 +71,16 @@ void main() {
             .onPressed,
         isNotNull,
       );
-      expect(tester.getSize(find.byType(DropdownButton<String>)).width, 351);
+      final statusBounds = tester.getRect(
+        find.byType(DropdownButtonFormField<String>),
+      );
+      expect(statusBounds.left, greaterThanOrEqualTo(16));
+      expect(
+        statusBounds.right,
+        lessThanOrEqualTo(
+          tester.view.physicalSize.width / tester.view.devicePixelRatio - 16,
+        ),
+      );
       await tester.enterText(find.byType(TextField), 'Tennis');
       tester.view.viewInsets = const FakeViewPadding(bottom: 400);
       await tester.pumpAndSettle();
@@ -79,7 +88,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Apply'),
         100,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
@@ -87,7 +96,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('No events found.'),
         100,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('No events found.').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -96,7 +105,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Create'),
         -100,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       expect(
         tester

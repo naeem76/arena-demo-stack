@@ -9,38 +9,44 @@
 
 <section class="panel" aria-label="Booking filters">
   <div class="toolbar">
-    <label for="booking-event">Event</label>
-    <select
-      id="booking-event"
-      class="select"
-      [ngModel]="eventId()"
-      (ngModelChange)="setFilter('eventId', $event)"
-    >
-      <option [ngValue]="''">All events</option>
-      @if (eventId() && !hasSelectedEvent()) {
-        <option [ngValue]="eventId()">
-          {{ selectedEvent()?.title || 'Selected event · ' + eventId() }}
-        </option>
-      }
-      @for (event of events(); track event.id) {
-        <option [ngValue]="event.id">{{ event.title }}</option>
-      }
-    </select>
-    <label for="booking-status">Booking status</label>
-    <select
-      id="booking-status"
-      class="select"
-      [value]="status()"
-      (change)="setFilter('status', $any($event.target).value)"
-    >
-      <option value="">All statuses</option>
-      <option value="CONFIRMED">Confirmed</option>
-      <option value="CANCELLED">Cancelled</option>
-    </select>
+    <div class="field field-event">
+      <label for="booking-event">Event</label>
+      <select
+        id="booking-event"
+        class="select"
+        [ngModel]="eventId()"
+        (ngModelChange)="setFilter('eventId', $event)"
+      >
+        <option [ngValue]="''">All events</option>
+        @if (eventId() && !hasSelectedEvent()) {
+          <option [ngValue]="eventId()">
+            {{ selectedEvent()?.title || 'Selected event · ' + eventId() }}
+          </option>
+        }
+        @for (event of events(); track event.id) {
+          <option [ngValue]="event.id">{{ event.title }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="booking-status">Booking status</label>
+      <select
+        id="booking-status"
+        class="select"
+        [value]="status()"
+        (change)="setFilter('status', $any($event.target).value)"
+      >
+        <option value="">All statuses</option>
+        <option value="CONFIRMED">Confirmed</option>
+        <option value="CANCELLED">Cancelled</option>
+      </select>
+    </div>
     @if (eventId() || status()) {
-      <button class="btn btn-outline btn-sm" type="button" (click)="clearFilters()">
-        Clear filters
-      </button>
+      <div class="toolbar-actions">
+        <button class="btn btn-outline" type="button" (click)="clearFilters()">
+          Clear filters
+        </button>
+      </div>
     }
   </div>
   @if (eventsLoading()) {
@@ -62,7 +68,8 @@
       (retry)="retryEvents()"
     />
   }
-  @if (!eventsError()) {
+  @if (!eventsError() && eventPagination().totalPages > 1) {
+    <p class="option-pagination-label">Event options</p>
     <app-pagination
       label="Event option pages"
       [info]="eventPagination()"
@@ -106,7 +113,6 @@
           <th scope="col">Event</th>
           <th scope="col">Event times</th>
           <th scope="col">Booking status</th>
-          <th scope="col">Event status</th>
           <th scope="col">Created</th>
           <th scope="col">Actions</th>
         </tr>
@@ -117,14 +123,34 @@
             <td data-label="Participant" class="primary-cell">
               {{ booking.participant.displayName }}
             </td>
-            <td data-label="Event">{{ booking.event.title }}</td>
+            <td data-label="Event">
+              <div class="table-facts">
+                <span>{{ booking.event.title }}</span>
+                <app-status-badge [status]="booking.event.status" />
+              </div>
+            </td>
             <td data-label="Event times">
-              <div>Starts {{ booking.event.startsAt | date: 'medium' }}</div>
-              <div class="muted">Ends {{ booking.event.endsAt | date: 'medium' }}</div>
+              <div class="table-facts">
+                <time [attr.datetime]="booking.event.startsAt"
+                  >Starts {{ booking.event.startsAt | date: 'mediumDate' }}<br />{{
+                    booking.event.startsAt | date: 'shortTime'
+                  }}</time
+                >
+                <time class="muted" [attr.datetime]="booking.event.endsAt"
+                  >Ends {{ booking.event.endsAt | date: 'mediumDate' }}<br />{{
+                    booking.event.endsAt | date: 'shortTime'
+                  }}</time
+                >
+              </div>
             </td>
             <td data-label="Booking status"><app-status-badge [status]="booking.status" /></td>
-            <td data-label="Event status"><app-status-badge [status]="booking.event.status" /></td>
-            <td data-label="Created">{{ booking.createdAt | date: 'medium' }}</td>
+            <td data-label="Created">
+              <time [attr.datetime]="booking.createdAt"
+                >{{ booking.createdAt | date: 'mediumDate' }}<br /><span class="muted">{{
+                  booking.createdAt | date: 'shortTime'
+                }}</span></time
+              >
+            </td>
             <td data-label="Actions">
               <a
                 class="btn btn-outline btn-sm"
@@ -143,13 +169,11 @@
         }
       </tbody>
     </table>
+    <app-pagination
+      label="Booking pages"
+      [info]="pagination()"
+      [busy]="loading()"
+      (pageChange)="goToPage($event)"
+    />
   </section>
-}
-@if (!error()) {
-  <app-pagination
-    label="Booking pages"
-    [info]="pagination()"
-    [busy]="loading()"
-    (pageChange)="goToPage($event)"
-  />
 }

@@ -2,9 +2,14 @@
   <div>
     <h1 class="page-title">Events</h1>
   </div>
-  <a class="btn btn-primary" routerLink="/events/new" queryParamsHandling="preserve"
-    >Create event <span aria-hidden="true">↗</span></a
-  >
+  <div class="actions">
+    <button type="button" class="btn btn-outline" (click)="refresh()" [disabled]="loading()">
+      Refresh
+    </button>
+    <a class="btn btn-primary" routerLink="/events/new" queryParamsHandling="preserve">
+      <span aria-hidden="true">+</span> Create event
+    </a>
+  </div>
 </header>
 @if (notice()) {
   <p class="notice" role="status">{{ notice() }}</p>
@@ -34,11 +39,10 @@
         }
       </select>
     </div>
-    <button type="submit" class="btn btn-primary">Apply filters</button>
-    <button type="button" class="btn btn-outline" (click)="filter('', '')">Clear filters</button>
-    <button type="button" class="btn btn-outline" (click)="refresh()" [disabled]="loading()">
-      Refresh
-    </button>
+    <div class="toolbar-actions">
+      <button type="submit" class="btn btn-primary">Apply filters</button>
+      <button type="reset" class="btn btn-outline" (click)="filter('', '')">Clear filters</button>
+    </div>
   </form>
   @if (loading()) {
     <app-page-feedback kind="loading" title="Loading events" />
@@ -87,7 +91,10 @@
             </td>
             <td data-label="Sport">{{ event.sport }}</td>
             <td data-label="Starts">
-              <time [attr.datetime]="event.startsAt">{{ event.startsAt | date: 'medium' }}</time>
+              <time [attr.datetime]="event.startsAt">
+                {{ event.startsAt | date: 'mediumDate' }}<br />
+                <span class="muted">{{ event.startsAt | date: 'shortTime' }}</span>
+              </time>
             </td>
             <td data-label="Location">{{ event.location }}</td>
             <td data-label="Total capacity" class="mono">{{ event.capacity }}</td>

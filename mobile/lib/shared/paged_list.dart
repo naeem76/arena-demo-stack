@@ -181,7 +181,12 @@ class PagedListFooter<T> extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!busy && state.error == null)
-            Text('${state.items.length} of ${state.totalElements} items'),
+            Text(
+              '${state.items.length} of ${state.totalElements} items',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           if (busy)
             const Padding(
               padding: EdgeInsets.all(12),

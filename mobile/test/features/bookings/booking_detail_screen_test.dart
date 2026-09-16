@@ -95,7 +95,16 @@ void main() {
       );
       await mountDetail(tester, adapter);
       await openConfirmation(tester);
-      await tester.tap(find.text('Cancel', skipOffstage: false));
+      expect(find.text('Cancelling…'), findsNothing);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Cancel booking'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Keep booking', skipOffstage: false));
       await tester.pumpAndSettle();
       expect(adapter.requests.where((r) => r.method != 'GET'), isEmpty);
       await openConfirmation(tester);
@@ -104,8 +113,8 @@ void main() {
       expect(adapter.requests.where((r) => r.method != 'GET'), hasLength(1));
       expect(
         tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Cancelling…'),
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Cancelling…'),
             )
             .onPressed,
         isNull,
@@ -137,7 +146,11 @@ void main() {
       findsOneWidget,
     );
     now = bookingNow;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     await openConfirmation(tester);
@@ -194,11 +207,11 @@ void main() {
         find.text('Your session has expired. Sign in again to continue.'),
         findsWidgets,
       );
-      await tester.scrollUntilVisible(find.text('Cancel booking'), 200);
+      await tester.ensureVisible(find.text('Cancel booking'));
       expect(
         tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Cancel booking'),
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Cancel booking'),
             )
             .onPressed,
         isNull,

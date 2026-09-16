@@ -2,54 +2,94 @@ import 'package:arena_api/arena_api.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/status_badge.dart';
-
-String bookingTime(BuildContext context, DateTime value) {
-  final local = value.toLocal();
-  final labels = MaterialLocalizations.of(context);
-  return '${labels.formatMediumDate(local)} · ${labels.formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}';
-}
+import '../../shared/detail_section.dart';
+import '../../shared/local_time.dart';
 
 class BookingSummary extends StatelessWidget {
   const BookingSummary({
     super.key,
     required this.booking,
     this.details = false,
+    this.action,
   });
   final BookingResponse booking;
   final bool details;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     final event = booking.event;
+    final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(event.title, style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          event.title,
+          style: details
+              ? theme.textTheme.headlineSmall
+              : theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
-        StatusBadge(status: booking.status.name),
-        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: StatusBadge(status: booking.status.name),
+        ),
+        const SizedBox(height: 12),
         Text('Participant: ${booking.participant.displayName}'),
-        Text('Participant ID: ${booking.participant.id}'),
-        Text('${event.sport} · ${event.location}'),
-        Text('Starts: ${bookingTime(context, event.startsAt)}'),
-        Text('Ends: ${bookingTime(context, event.endsAt)}'),
-        if (details) ...[
-          const Divider(height: 32),
-          Text('Booking ID: ${booking.id}'),
-          Text('Event ID: ${event.id}'),
-          Text('Event status: ${event.status.name}'),
-          if (event.description?.isNotEmpty == true) Text(event.description!),
-          Text('Capacity: ${event.capacity}'),
-          const SizedBox(height: 16),
-          Text(
-            'Booking history',
-            style: Theme.of(context).textTheme.titleMedium,
+        if (action != null) ...[const SizedBox(height: 16), action!],
+        const SizedBox(height: 12),
+        if (!details) ...[
+          Text('${event.sport} · ${event.location}'),
+          const SizedBox(height: 4),
+          Text('Starts: ${localTime(context, event.startsAt)}'),
+        ] else ...[
+          DetailSection(
+            title: 'Event information',
+            facts: {
+              'Sport': event.sport,
+              'Location': event.location,
+              'Starts (local)': localTime(context, event.startsAt),
+              'Ends (local)': localTime(context, event.endsAt),
+              'Description': event.description?.trim().isNotEmpty == true
+                  ? event.description!
+                  : 'No description provided.',
+              'Capacity': '${event.capacity}',
+              'Event status': event.status.name,
+            },
           ),
-          Text('Created: ${bookingTime(context, booking.createdAt)}'),
-          Text('Last updated: ${bookingTime(context, booking.updatedAt)}'),
-          Text('Current status: ${booking.status.name}'),
-          if (booking.status.name == 'CANCELLED')
-            const Text('This booking was cancelled. Its history is retained.'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Booking history', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  Text('Created: ${localTime(context, booking.createdAt)}'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Last updated: ${localTime(context, booking.updatedAt)}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Current status: ${booking.status.name}'),
+                  if (booking.status.name == 'CANCELLED') ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'This booking was cancelled. Its history is retained.',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          DetailSection(
+            title: 'Record details',
+            facts: {
+              'Booking ID': booking.id,
+              'Event ID': event.id,
+              'Participant ID': booking.participant.id,
+            },
+          ),
         ],
       ],
     );

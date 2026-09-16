@@ -29,6 +29,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen>
   String? cancelError;
   bool loading = false;
   bool busy = false;
+  bool cancelling = false;
   bool changed = false;
   int generation = 0;
   CancelToken? request;
@@ -133,6 +134,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen>
         message:
             'Cancel ${record.participant.displayName}’s booking for ${record.event.title}? The booking history will be retained.',
         confirmLabel: 'Cancel booking',
+        dismissLabel: 'Keep booking',
+        destructive: true,
       );
       if (!mounted || current != generation || !confirmed) return;
       if (!authorized()) {
@@ -147,6 +150,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen>
         return;
       }
       final token = request = CancelToken();
+      setState(() => cancelling = true);
       try {
         final result =
             (await ref
@@ -173,7 +177,12 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen>
         }
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+          cancelling = false;
+        });
+      }
     }
   }
 
@@ -211,46 +220,64 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen>
             icon: Icons.confirmation_number_outlined,
           ),
         ),
-        body: RefreshIndicator(
-          onRefresh: () async {
-            if (!busy) await load();
-          },
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (loading) const LinearProgressIndicator(),
-              if (loadError != null)
-                FeedbackPanel(
-                  title: 'Unable to load booking',
-                  message: loadError,
-                  onRetry: busy ? null : load,
-                ),
-              if (record != null) ...[
-                BookingSummary(booking: record, details: true),
-                const SizedBox(height: 24),
-                if (cancelError != null)
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              if (!busy) await load();
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (loading) const LinearProgressIndicator(),
+                if (loadError != null)
                   FeedbackPanel(
-                    title: 'Unable to cancel booking',
-                    message: cancelError,
-                    onRetry: eligible && signedIn && !busy && !loading
-                        ? cancelBooking
-                        : null,
+                    title: 'Unable to load booking',
+                    message: loadError,
+                    onRetry: busy ? null : load,
                   ),
-                if (eligible)
-                  FilledButton.icon(
-                    onPressed: signedIn && !busy && !loading
-                        ? cancelBooking
-                        : null,
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: Text(busy ? 'Cancelling…' : 'Cancel booking'),
-                  ),
-                if (!eligible && record.status.name == 'CONFIRMED')
-                  const Text(
-                    'Cancellation is only available before the event starts and while it is not live or completed.',
+                if (record != null && !loading && loadError == null)
+                  BookingSummary(
+                    booking: record,
+                    details: true,
+                    action: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (cancelError != null)
+                          FeedbackPanel(
+                            title: 'Unable to cancel booking',
+                            message: cancelError,
+                            onRetry: eligible && signedIn && !busy && !loading
+                                ? cancelBooking
+                                : null,
+                          ),
+                        if (eligible)
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .error,
+                              side: BorderSide(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                            onPressed: signedIn && !busy && !loading
+                                ? cancelBooking
+                                : null,
+                            icon: const Icon(Icons.cancel_outlined),
+                            label: Text(
+                              cancelling ? 'Cancelling…' : 'Cancel booking',
+                            ),
+                          ),
+                        if (!eligible && record.status.name == 'CONFIRMED')
+                          const Text(
+                            'Cancellation is only available before the event starts and while it is not live or completed.',
+                          ),
+                      ],
+                    ),
                   ),
               ],
-            ],
+            ),
           ),
         ),
       ),

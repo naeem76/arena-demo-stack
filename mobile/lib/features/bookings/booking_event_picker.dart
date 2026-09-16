@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_providers.dart';
 import '../../shared/paged_list.dart';
 import 'booking_data.dart';
+import '../../shared/local_time.dart';
 
 class BookingEventSelection {
   const BookingEventSelection(this.id, this.title);
@@ -58,41 +59,59 @@ class _BookingEventPickerState extends ConsumerState<BookingEventPicker> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
-          if (widget.selectedId != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Selected: ${widget.selectedTitle ?? widget.selectedId}',
-              ),
-            ),
-          ListTile(
-            title: const Text('All events'),
-            selected: widget.selectedId == null,
-            onTap: () =>
-                Navigator.pop(context, const BookingEventSelection(null, null)),
-          ),
           Expanded(
-            child: ListView.builder(
-              itemCount: state.items.length + 1,
-              itemBuilder: (context, index) {
-                if (index == state.items.length) {
-                  return PagedListFooter(
-                    state: state,
-                    onLoadMore: controller.loadMore,
-                    onRetry: controller.retry,
-                  );
-                }
-                final event = state.items[index];
-                return ListTile(
-                  title: Text(event.title),
-                  subtitle: Text('${event.sport} · ${event.location}'),
-                  selected: event.id == widget.selectedId,
-                  onTap: () => Navigator.pop(
-                    context,
-                    BookingEventSelection(event.id, event.title),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                if (widget.selectedId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Selected: ${widget.selectedTitle ?? widget.selectedId}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
-                );
-              },
+                Card(
+                  child: ListTile(
+                    title: const Text('All events'),
+                    leading: const Icon(Icons.event_note_outlined),
+                    trailing: widget.selectedId == null
+                        ? const Icon(Icons.check)
+                        : null,
+                    selected: widget.selectedId == null,
+                    onTap: () => Navigator.pop(
+                      context,
+                      const BookingEventSelection(null, null),
+                    ),
+                  ),
+                ),
+                for (final event in state.items)
+                  Card(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      title: Text(event.title),
+                      subtitle: Text(
+                        '${event.sport} · ${event.location}\n${localTime(context, event.startsAt)}',
+                      ),
+                      trailing: event.id == widget.selectedId
+                          ? const Icon(Icons.check)
+                          : null,
+                      selected: event.id == widget.selectedId,
+                      onTap: () => Navigator.pop(
+                        context,
+                        BookingEventSelection(event.id, event.title),
+                      ),
+                    ),
+                  ),
+                PagedListFooter(
+                  state: state,
+                  onLoadMore: controller.loadMore,
+                  onRetry: controller.retry,
+                ),
+              ],
             ),
           ),
         ],

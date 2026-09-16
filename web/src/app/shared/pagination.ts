@@ -21,7 +21,7 @@ export function recoveryPage(page: number, totalPages: number): number | null {
 @Component({
   selector: 'app-pagination',
   template: `
-    <nav class="toolbar" [attr.aria-label]="label()">
+    <nav class="pagination" [attr.aria-label]="label()" [attr.aria-busy]="busy()">
       <button
         type="button"
         class="btn btn-outline btn-sm"
@@ -30,10 +30,15 @@ export function recoveryPage(page: number, totalPages: number): number | null {
       >
         Previous
       </button>
-      <span role="status"
-        >Page {{ info().totalPages ? info().page + 1 : 0 }} of {{ info().totalPages }} ·
-        {{ info().totalElements }} total</span
-      >
+      <span role="status">
+        @if (busy()) {
+          Loading…
+        } @else if (info().totalPages) {
+          Page {{ info().page + 1 }} of {{ info().totalPages }} · {{ info().totalElements }} total
+        } @else {
+          No results
+        }
+      </span>
       <button
         type="button"
         class="btn btn-outline btn-sm"

@@ -70,7 +70,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Booking details'), findsOneWidget);
       expect(find.text('Cancelling…'), findsOneWidget);
-      expect(find.text('All participant bookings'), findsNothing);
+      expect(find.text('Filters'), findsNothing);
       expect(listReads, 1);
       cancellation.complete(
         BookingAdapter.json(bookingJson('1', status: 'CANCELLED')),
@@ -80,12 +80,15 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(listReads, 2);
-      expect(find.text('All participant bookings'), findsOneWidget);
-      expect(find.text('CONFIRMED'), findsOneWidget); // Filter chip only.
+      expect(find.text('Filters'), findsOneWidget);
+      expect(find.text('CONFIRMED'), findsNothing);
       expect(
-        find.text('CANCELLED'),
-        findsNWidgets(2),
-      ); // Chip and updated card.
+        find.descendant(
+          of: find.byType(Card),
+          matching: find.text('CANCELLED'),
+        ),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -132,6 +135,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(bookingQuery()['eventId'], 'chosen');
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('CANCELLED'));
     await tester.pumpAndSettle();
     expect(bookingQuery()['status'], 'CANCELLED');
@@ -147,9 +152,9 @@ void main() {
     expect(bookingQuery()['status'], 'CANCELLED');
     expect(
       tester
-          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'CANCELLED'))
-          .selected,
-      isTrue,
+          .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+          .value,
+      'CANCELLED',
     );
     rebuild(() => revision++);
     await tester.pumpAndSettle();
@@ -157,9 +162,9 @@ void main() {
     expect(bookingQuery()['status'], isNull);
     expect(
       tester
-          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All statuses'))
-          .selected,
-      isTrue,
+          .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+          .value,
+      '',
     );
     expect(find.text('Event: Chosen event'), findsOneWidget);
   });

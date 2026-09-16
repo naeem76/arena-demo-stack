@@ -81,35 +81,147 @@ class _ArenaAppState extends ConsumerState<ArenaApp> {
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _messengerKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorScheme: colors),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: colors,
+        cardTheme: const CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          margin: EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+            side: BorderSide(color: Color(0x1F20332B)),
+          ),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: EdgeInsets.all(16),
+          errorMaxLines: 3,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0x3320332B)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderSide: BorderSide(color: Color(0x3320332B)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            backgroundColor: Colors.white,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        appBarTheme: const AppBarTheme(scrolledUnderElevation: 0),
+      ),
       home: endpoint.isLoading
           ? const Scaffold(body: Center(child: Text('Looking for local API…')))
           : auth.session != null
           ? _AdminShell(onLogout: _logout)
-          : Scaffold(
-              body: SafeArea(
-                child: Center(
+          : _SignInScreen(enabled: !_loggingOut),
+    );
+  }
+}
+
+class _SignInScreen extends ConsumerWidget {
+  const _SignInScreen({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - 32).clamp(0, double.infinity),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Arena Admin',
-                          style: Theme.of(context).textTheme.headlineMedium,
+                        Center(
+                          child: CircleAvatar(
+                            radius: 24,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer,
+                            child: Icon(
+                              Icons.event_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        Text(ref.watch(apiBaseUrlProvider)),
+                        Text(
+                          'Arena Admin',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sign in to continue.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 24),
+                        _SignInControls(enabled: enabled),
                         const SizedBox(height: 16),
-                        _SignInControls(enabled: !_loggingOut),
+                        Text(
+                          ref.watch(apiBaseUrlProvider),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
-    );
-  }
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _AdminShell extends ConsumerStatefulWidget {
@@ -147,16 +259,39 @@ class _AdminShellState extends ConsumerState<_AdminShell> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(ref.watch(authProvider).session?.name ?? 'Session ended'),
-              const SizedBox(height: 12),
-              Text(ref.watch(apiBaseUrlProvider)),
-              if (endpoint != null)
+              Text(
+                'SIGNED IN AS',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                ref.watch(authProvider).session?.name ?? 'Session ended',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'API ENDPOINT',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              SelectableText(ref.watch(apiBaseUrlProvider)),
+              if (endpoint != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'CONNECTION SOURCE',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                const SizedBox(height: 4),
                 Text('${endpoint.source.name}: ${endpoint.detail}'),
+              ],
             ],
           ),
           scrollable: true,
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
                 widget.onLogout();
@@ -242,6 +377,7 @@ class _SignInControls extends ConsumerWidget {
     final busy = auth.busy || !enabled;
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (auth.message != null)
           Semantics(liveRegion: true, child: Text(auth.message!)),

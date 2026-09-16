@@ -98,6 +98,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      showDragHandle: true,
       builder: (context) => FractionallySizedBox(
         heightFactor: .85,
         child: BookingEventPicker(
@@ -141,10 +142,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            'All participant bookings',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          Text('Filters', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: chooseEvent,
@@ -167,29 +165,36 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               },
               child: const Text('Clear event filter'),
             ),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final value in <String?>[null, 'CONFIRMED', 'CANCELLED'])
-                ChoiceChip(
-                  label: Text(value ?? 'All statuses'),
-                  selected: status == value,
-                  onSelected: (_) {
-                    setState(() => status = value);
-                    applyFilters();
-                  },
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey(status),
+            initialValue: status ?? '',
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Booking status'),
+            items: [
+              for (final value in ['', 'CONFIRMED', 'CANCELLED'])
+                DropdownMenuItem(
+                  value: value,
+                  child: Text(value.isEmpty ? 'All statuses' : value),
                 ),
             ],
+            onChanged: (value) {
+              setState(() => status = value == '' ? null : value);
+              applyFilters();
+            },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           if (state.items.isEmpty && !state.loading && state.error == null)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('No bookings match these filters.'),
+            const Card(
+              child: FeedbackPanel(
+                title: 'No bookings match these filters.',
+                message: 'Try another event or booking status.',
+              ),
             ),
           for (final booking in state.items)
             Card(
               child: InkWell(
+                borderRadius: BorderRadius.circular(16),
                 onTap: () async {
                   await Navigator.of(context).push<bool>(
                     MaterialPageRoute(

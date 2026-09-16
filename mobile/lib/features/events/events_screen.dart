@@ -7,6 +7,7 @@ import '../../core/app_providers.dart';
 import '../../shared/paged_list.dart';
 import '../../shared/feedback_panel.dart';
 import '../../shared/status_badge.dart';
+import '../../shared/local_time.dart';
 import 'event_detail_screen.dart';
 import 'event_form.dart';
 
@@ -120,71 +121,69 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       onRefresh: controller.refresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _sport,
-                  decoration: const InputDecoration(
-                    labelText: 'Filter by sport',
-                  ),
-                  onSubmitted: (_) => controller.filter(_sport.text, _status),
-                ),
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value: _status ?? '',
-                  items: [
-                    for (final status in [
-                      '',
-                      'SCHEDULED',
-                      'LIVE',
-                      'COMPLETED',
-                      'CANCELLED',
-                    ])
-                      DropdownMenuItem(
-                        value: status,
-                        child: Text(status.isEmpty ? 'All statuses' : status),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _status = value == '' ? null : value);
-                    controller.filter(_sport.text, _status);
-                  },
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: () => controller.filter(_sport.text, _status),
-                      child: const Text('Apply'),
-                    ),
-                    FilledButton.icon(
-                      onPressed: !signedIn
-                          ? null
-                          : () {
-                              if (ref.read(authProvider).session == null ||
-                                  ref
-                                          .read(authProvider.notifier)
-                                          .tokenFor(
-                                            ref.read(apiBaseUrlProvider),
-                                          ) ==
-                                      null) {
-                                return;
-                              }
-                              _open(const EventFormScreen());
-                            },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create'),
-                    ),
-                  ],
-                ),
-              ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: !signedIn
+                  ? null
+                  : () {
+                      if (ref.read(authProvider).session == null ||
+                          ref
+                                  .read(authProvider.notifier)
+                                  .tokenFor(ref.read(apiBaseUrlProvider)) ==
+                              null) {
+                        return;
+                      }
+                      _open(const EventFormScreen());
+                    },
+              icon: const Icon(Icons.add),
+              label: const Text('Create'),
             ),
           ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _sport,
+            decoration: const InputDecoration(
+              labelText: 'Filter by sport',
+              prefixIcon: Icon(Icons.search),
+            ),
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => controller.filter(_sport.text, _status),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _status ?? '',
+            decoration: const InputDecoration(labelText: 'Event status'),
+            items: [
+              for (final status in [
+                '',
+                'SCHEDULED',
+                'LIVE',
+                'COMPLETED',
+                'CANCELLED',
+              ])
+                DropdownMenuItem(
+                  value: status,
+                  child: Text(status.isEmpty ? 'All statuses' : status),
+                ),
+            ],
+            onChanged: (value) {
+              setState(() => _status = value == '' ? null : value);
+              controller.filter(_sport.text, _status);
+            },
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => controller.filter(_sport.text, _status),
+              child: const Text('Apply'),
+            ),
+          ),
+          const SizedBox(height: 12),
           if (stateToUse.items.isEmpty &&
               !stateToUse.loading &&
               stateToUse.error == null)
@@ -194,16 +193,35 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             ),
           for (final event in stateToUse.items)
             Card(
-              child: ListTile(
-                title: Text(event.title),
-                subtitle: Text(
-                  '${event.sport} · ${event.location}\n${event.startsAt.toLocal()}\nTotal capacity: ${event.capacity}',
-                ),
-                trailing: StatusBadge(status: event.status.name),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
                 onTap: () => _open(
                   EventDetailScreen(
                     event: event,
                     onViewBookings: widget.onViewBookings,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      StatusBadge(status: event.status.name),
+                      const SizedBox(height: 12),
+                      Text('${event.sport} · ${event.location}'),
+                      const SizedBox(height: 4),
+                      Text(localTime(context, event.startsAt)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Total capacity: ${event.capacity}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -10,6 +10,7 @@ import '../../core/event_drafts.dart';
 import '../../shared/confirm_action.dart';
 import '../../shared/page_title.dart';
 import '../../shared/feedback_panel.dart';
+import '../../shared/local_time.dart';
 
 const eventTextLimits = {
   'title': 150,
@@ -34,7 +35,9 @@ Map<String, String> validateEventValues(
   }
   final capacity = int.tryParse(values['capacity'] as String? ?? '');
   if (capacity == null || capacity < 1 || capacity > 2147483647) {
-    errors['capacity'] = 'Enter a positive whole number up to 2147483647';
+    errors['capacity'] = capacity != null && capacity > 2147483647
+        ? 'Use 2,147,483,647 or fewer places'
+        : 'Enter a whole number of at least 1';
   }
   final start = DateTime.tryParse(values['startsAt'] as String? ?? '');
   final end = DateTime.tryParse(values['endsAt'] as String? ?? '');
@@ -243,6 +246,7 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
       title: 'Discard event draft?',
       message: 'Your unsaved changes will be permanently removed.',
       confirmLabel: 'Discard',
+      destructive: true,
     )) {
       return;
     }
@@ -329,62 +333,113 @@ class _EventFormScreenState extends ConsumerState<EventFormScreen>
           icon: Icons.event_outlined,
         ),
       ),
-      body: !_ready
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_message != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(_message!),
-                  ),
-                for (final entry in _controllers.entries)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: TextField(
-                      controller: entry.value,
-                      enabled: !_busy && !_closed,
-                      decoration: InputDecoration(
-                        labelText: entry.key == 'capacity'
-                            ? 'Total capacity'
-                            : '${entry.key[0].toUpperCase()}${entry.key.substring(1)}',
-                        errorText: _errors[entry.key],
+      body: SafeArea(
+        child: !_ready
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_message != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _message!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
                       ),
-                      keyboardType: entry.key == 'capacity'
-                          ? TextInputType.number
-                          : TextInputType.text,
-                      maxLines: entry.key == 'description' ? 4 : 1,
                     ),
+                  Text(
+                    'Event information',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                for (final key in _dates.keys)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      key == 'startsAt'
-                          ? 'Start (local time)'
-                          : 'End (local time)',
+                  const SizedBox(height: 16),
+                  for (final entry in _controllers.entries) ...[
+                    if (entry.key == 'capacity') ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Schedule & capacity',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: TextField(
+                        controller: entry.value,
+                        enabled: !_busy && !_closed,
+                        decoration: InputDecoration(
+                          labelText: entry.key == 'capacity'
+                              ? 'Total capacity'
+                              : '${entry.key[0].toUpperCase()}${entry.key.substring(1)}',
+                          helperText: entry.key == 'description'
+                              ? 'Optional'
+                              : null,
+                          alignLabelWithHint: entry.key == 'description',
+                          errorText: _errors[entry.key],
+                          errorMaxLines: 3,
+                        ),
+                        keyboardType: entry.key == 'capacity'
+                            ? TextInputType.number
+                            : entry.key == 'description'
+                            ? TextInputType.multiline
+                            : TextInputType.text,
+                        maxLines: entry.key == 'description' ? 3 : 1,
+                      ),
                     ),
-                    subtitle: Text(
-                      _errors[key] ??
-                          (DateTime.tryParse(_dates[key]!)
-                                  ?.toLocal()
-                                  .toString() ??
-                              'Choose date and time'),
+                  ],
+                  for (final key in _dates.keys)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Semantics(
+                        button: true,
+                        enabled: !_busy && !_closed,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: _busy || _closed ? null : () => _pick(key),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: key == 'startsAt'
+                                  ? 'Start (local time)'
+                                  : 'End (local time)',
+                              errorText: _errors[key],
+                              errorMaxLines: 3,
+                              enabled: !_busy && !_closed,
+                              suffixIcon: const Icon(
+                                Icons.calendar_today_outlined,
+                              ),
+                            ),
+                            child: Text(
+                              DateTime.tryParse(_dates[key]!) == null
+                                  ? 'Choose date and time'
+                                  : localTime(
+                                      context,
+                                      DateTime.parse(_dates[key]!),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    trailing: const Icon(Icons.calendar_today),
-                    onTap: _busy || _closed ? null : () => _pick(key),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: _busy || _closed ? null : _save,
+                    child: Text(_busy ? 'Saving…' : 'Save'),
                   ),
-                FilledButton(
-                  onPressed: _busy || _closed ? null : _save,
-                  child: Text(_busy ? 'Saving…' : 'Save'),
-                ),
-                TextButton(
-                  onPressed: _busy ? null : _discard,
-                  child: const Text('Discard'),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    onPressed: _busy ? null : _discard,
+                    child: const Text('Discard'),
+                  ),
+                ],
+              ),
+      ),
     ),
   );
 }

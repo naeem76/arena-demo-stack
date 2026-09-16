@@ -50,6 +50,8 @@ describe('Pagination', () => {
     fixture.componentRef.setInput('busy', true);
     fixture.detectChanges();
     expect([...buttons].every((button) => button.disabled)).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Loading…');
+    expect(fixture.nativeElement.textContent).not.toContain('41 total');
     fixture.componentRef.setInput('busy', false);
     fixture.componentRef.setInput('info', { page: 0, size: 20, totalElements: 21, totalPages: 2 });
     fixture.detectChanges();
