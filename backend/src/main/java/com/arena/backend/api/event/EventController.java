@@ -9,6 +9,7 @@ import com.arena.backend.domain.event.EventStatus;
 import com.arena.backend.security.ApiScopes;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -61,7 +62,8 @@ public class EventController {
 	@PostMapping
 	@Operation(summary = "Create a scheduled event (admin only)")
 	@ApiResponse(responseCode = "201", description = "Event created",
-			headers = @Header(name = "Location", description = "URL of the created event"))
+			headers = @Header(name = "Location", description = "URL of the created event",
+					schema = @Schema(type = "string", format = "uri")))
 	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest request) {
 		Event event = service.create(request.title(), request.description(), request.sport(), request.location(),

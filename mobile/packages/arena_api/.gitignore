@@ -1,0 +1,8 @@
+.dart_tool/
+.dart-tool/
+.packages
+build/
+coverage/
+# Commit resolved dependencies and built_value outputs for app consumption.
+!pubspec.lock
+!lib/**/*.g.dart

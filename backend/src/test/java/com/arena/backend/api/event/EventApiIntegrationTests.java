@@ -236,6 +236,8 @@ class EventApiIntegrationTests {
 				.andExpect(jsonPath("$.components.schemas.EventResponse.required").value(containsInAnyOrder("id", "title", "sport", "location", "startsAt", "endsAt", "capacity", "status", "createdAt", "updatedAt")))
 				.andExpect(jsonPath("$.components.schemas.EventResponse.properties.description.type").value(org.hamcrest.Matchers.hasItems("string", "null")))
 				.andExpect(jsonPath("$.paths['/api/events'].post.responses['201'].headers.Location").exists())
+				.andExpect(jsonPath("$.paths['/api/events'].post.responses['201'].headers.Location.schema.type").value("string"))
+				.andExpect(jsonPath("$.paths['/api/events'].post.responses['201'].headers.Location.schema.format").value("uri"))
 				.andExpect(jsonPath("$.paths['/api/events/{id}'].delete.responses['204']").exists())
 				.andExpect(jsonPath("$.components.schemas.EventRequest.properties.id").doesNotExist())
 				.andExpect(jsonPath("$.components.schemas.EventRequest.properties.status").doesNotExist());

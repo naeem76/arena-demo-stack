@@ -1,0 +1,9 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    # Generated code has its own analysis/build/test gate in scripts/generate-api.sh.
+    - packages/arena_api/**

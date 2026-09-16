@@ -228,6 +228,8 @@ class BookingApiIntegrationTests {
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].content['application/json']").exists())
 				.andExpect(jsonPath("$.components.schemas.BookingResponse.required").value(org.hamcrest.Matchers.containsInAnyOrder("id", "event", "status", "createdAt", "updatedAt", "participant")))
 				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location").exists())
+				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location.schema.type").value("string"))
+				.andExpect(jsonPath("$.paths['/api/bookings'].post.responses['201'].headers.Location.schema.format").value("uri"))
 				.andExpect(jsonPath("$.components.schemas.BookingRequest.properties.userId").doesNotExist());
 	}
 

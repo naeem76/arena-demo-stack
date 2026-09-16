@@ -1,12 +1,13 @@
 # Arena Assessment
 
 This repository contains the Arena full-stack developer assessment: a Spring Boot
-backend and Angular administration SPA. The Flutter mobile application is the
-next implementation milestone.
+backend, Angular administration SPA, and Flutter mobile foundation.
 
 The Angular app supports complete Event CRUD, lifecycle management and cross-user
 booking inspection/cancellation, backed by database-persisted users and OAuth2/OIDC
-login. Both applications share a generated OpenAPI contract.
+login. Angular and Flutter generate their API clients from the same OpenAPI
+snapshot. Flutter currently provides the application shell and API integration
+foundation; mobile authentication and CRUD screens are still pending.
 
 ## Run locally
 
@@ -79,6 +80,16 @@ API_BASE_URL=http://localhost:8080 npm run update:api
 
 See [web application](web/README.md) for structure, authentication, runtime
 configuration, testing and trade-offs.
+
+## Flutter development
+
+The mobile project targets Android and iOS. Use the Flutter SDK version pinned in
+`mobile/.flutter-version`; Flutter includes the matching Dart SDK. Android builds
+also require the Android SDK, and iOS builds require macOS and Xcode.
+
+See [mobile foundation](mobile/README.md) for setup, generated API tooling,
+verification commands, and the current implementation scope. Physical-phone
+HTTPS/network configuration will be added with mobile authentication.
 
 ## Backend development
 

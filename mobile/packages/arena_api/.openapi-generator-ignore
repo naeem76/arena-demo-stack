@@ -1,0 +1,5 @@
+# Authored package policy and tests must survive regeneration.
+.gitignore
+.openapi-generator-ignore
+test/**
+FOUNDATION.md

@@ -9,6 +9,7 @@ import com.arena.backend.domain.booking.BookingStatus;
 import com.arena.backend.security.ApiScopes;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -64,7 +65,8 @@ public class BookingController {
 	@PostMapping
 	@Operation(summary = "Reserve one place at an event")
 	@ApiResponse(responseCode = "201", description = "Booking created",
-			headers = @Header(name = "Location", description = "URL of the created booking"))
+			headers = @Header(name = "Location", description = "URL of the created booking",
+					schema = @Schema(type = "string", format = "uri")))
 	@SecurityRequirement(name = "arenaOAuth", scopes = ApiScopes.ACCESS)
 	public ResponseEntity<BookingResponse> create(@Valid @RequestBody BookingRequest request,
 			@AuthenticationPrincipal Jwt principal) {
