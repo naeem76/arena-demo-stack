@@ -1,5 +1,6 @@
 package com.arena.backend;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -30,6 +31,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -217,6 +219,87 @@ class SecurityIntegrationTests {
 	void loginRequiresCsrfToken() throws Exception {
 		mvc.perform(post("/login").param("username", "demo").param("password", "arena-demo"))
 				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void authPagesRenderAccessibleFormsWithCsrfAndLocalStyles() throws Exception {
+		String page = mvc.perform(get("/login"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+				.andExpect(header().string("X-Content-Type-Options", "nosniff"))
+				.andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")))
+				.andReturn().getResponse().getContentAsString();
+		assertThat(page).contains("lang=\"en\"", "href=\"/auth.css\"", "action=\"/login\"", "method=\"post\"",
+				"name=\"_csrf\"", "<label for=\"username\">Username</label>",
+				"<label for=\"password\">Password</label>", "autocomplete=\"current-password\"")
+				.doesNotContain("role=\"alert\"");
+		mvc.perform(get("/auth.css"))
+				.andExpect(status().isOk())
+				.andExpect(content().contentTypeCompatibleWith("text/css"))
+				.andExpect(header().string("X-Content-Type-Options", "nosniff"));
+		mvc.perform(post("/auth.css").with(csrf()).session(login()))
+				.andExpect(status().isForbidden());
+		mvc.perform(get("/auth/unexpected").session(login())).andExpect(status().isForbidden());
+		mvc.perform(get("/").session(login())).andExpect(status().isForbidden());
+	}
+
+	@Test
+	void loginErrorNeverRendersUntrustedParametersOrExceptionDetails() throws Exception {
+		MockHttpSession session = new MockHttpSession();
+		String untrusted = "<script>alert('private-details')</script>";
+		session.setAttribute(WebAttributes.AUTHENTICATION_EXCEPTION, new BadCredentialsException(untrusted));
+		String page = mvc.perform(get("/login").session(session).param("error", untrusted).param("username", untrusted))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(page).contains("role=\"alert\"", "aria-describedby=\"login-error\"", "aria-invalid=\"true\"",
+				"Invalid username or password.").doesNotContain("private-details", "<script");
+	}
+
+	@Test
+	void logoutConfirmationIsReadOnlyAndPostRequiresCsrf() throws Exception {
+		MockHttpSession session = login();
+		String page = mvc.perform(get("/logout").session(session))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		assertThat(page).contains("action=\"/logout\"", "method=\"post\"", "name=\"_csrf\"");
+		assertThat(session.isInvalid()).isFalse();
+		mvc.perform(post("/logout").session(session)).andExpect(status().isForbidden());
+		assertThat(session.isInvalid()).isFalse();
+		authorize("api.access", session);
+		mvc.perform(post("/logout").session(session).with(csrf()))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "/login?logout"));
+		assertThat(session.isInvalid()).isTrue();
+		mvc.perform(get("/login?logout"))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("role=\"status\"")))
+				.andExpect(content().string(containsString("You have been signed out.")));
+	}
+
+	@Test
+	void authPagesAndFailedLoginPreservePendingOAuthRequest() throws Exception {
+		MockHttpSession session = (MockHttpSession) mvc.perform(get("/oauth2/authorize")
+				.accept(MediaType.TEXT_HTML)
+				.queryParam("client_id", "arena-web").queryParam("response_type", "code")
+				.queryParam("redirect_uri", WEB_ORIGIN + "/auth/callback")
+				.queryParam("scope", "openid profile api.access").queryParam("state", "saved-state")
+				.queryParam("code_challenge", VERIFIER).queryParam("code_challenge_method", "S256"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "http://localhost/login"))
+				.andReturn().getRequest().getSession(false);
+		mvc.perform(get("/login").session(session)).andExpect(status().isOk());
+		mvc.perform(get("/auth.css").session(session)).andExpect(status().isOk());
+		mvc.perform(post("/login").session(session).with(csrf())
+				.param("username", "demo").param("password", "wrong"))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, "/login?error"));
+		mvc.perform(get("/login?error").session(session)).andExpect(status().isOk());
+		String saved = mvc.perform(post("/login").session(session).with(csrf())
+				.param("username", "demo").param("password", "arena-demo"))
+				.andExpect(status().isFound()).andReturn().getResponse().getRedirectedUrl();
+		assertThat(saved).startsWith("http://localhost/oauth2/authorize?");
+		mvc.perform(get(URI.create(saved)).session(session))
+				.andExpect(status().isFound())
+				.andExpect(header().string(HttpHeaders.LOCATION, containsString(WEB_ORIGIN + "/auth/callback?code=")))
+				.andExpect(header().string(HttpHeaders.LOCATION, containsString("state=saved-state")));
 	}
 
 	@ParameterizedTest

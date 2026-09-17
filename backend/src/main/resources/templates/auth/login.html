@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{auth/head :: head('Sign in')}"></head>
+<body>
+  <main class="auth-card" aria-labelledby="page-title" th:with="loginError=${param.error != null}">
+    <p class="brand">Arena</p>
+    <h1 id="page-title">Sign in</h1>
+    <p class="intro">Use your Arena account to continue.</p>
+    <p th:if="${loginError}" id="login-error" class="notice error" role="alert">
+      Invalid username or password.
+    </p>
+    <p th:if="${param.logout != null}" class="notice success" role="status">
+      You have been signed out. Return to your app to start a new sign-in.
+    </p>
+    <form th:action="@{/login}" method="post">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none"
+               spellcheck="false" required autofocus
+               th:attr="aria-invalid=${loginError ? 'true' : null},aria-describedby=${loginError ? 'login-error' : null}">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required
+               th:attr="aria-invalid=${loginError ? 'true' : null},aria-describedby=${loginError ? 'login-error' : null}">
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

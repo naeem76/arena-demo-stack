@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{auth/head :: head('Sign out')}"></head>
+<body>
+  <main class="auth-card" aria-labelledby="page-title">
+    <p class="brand">Arena</p>
+    <h1 id="page-title">Sign out?</h1>
+    <p class="intro">Are you sure you want to sign out of your Arena account?</p>
+    <form th:action="@{/logout}" method="post">
+      <button type="submit">Sign out</button>
+    </form>
+  </main>
+</body>
+</html>

@@ -69,10 +69,11 @@ public class SecurityConfiguration {
 	SecurityFilterChain webChain(HttpSecurity http) throws Exception {
 		var loginFailure = new SimpleUrlAuthenticationFailureHandler("/login?error");
 		http.authorizeHttpRequests(authorize -> authorize
+						.requestMatchers(HttpMethod.GET, "/login", "/logout", "/auth.css").permitAll()
 						.requestMatchers("/scalar", "/scalar/**", "/v3/api-docs", "/v3/api-docs/**",
 								"/actuator/health", "/error").permitAll()
 						.anyRequest().denyAll())
-				.formLogin(form -> form.permitAll()
+				.formLogin(form -> form.loginPage("/login").permitAll()
 						.authenticationDetailsSource(request -> {
 							String password = request.getParameter("password");
 							// Reject over-limit input before BCrypt verification can ignore its suffix.

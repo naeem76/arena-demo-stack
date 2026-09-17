@@ -103,10 +103,29 @@ class RequestLoggingIntegrationTests {
 		var denied = browser.send(HttpRequest.newBuilder(URI.create(base + "/"))
 				.header("Accept", "text/html").build(), HttpResponse.BodyHandlers.ofString());
 		assertThat(denied.statusCode()).isEqualTo(403);
+		assertThat(denied.body()).contains("Request unsuccessful", "href=\"/auth.css\"")
+				.doesNotContain("Whitelabel", "arena-demo", csrf.group(1));
 		assertThat(logs.list).hasSize(1);
 		assertThat(logs.list.getFirst().getFormattedMessage()).contains("method=GET path=/ status=403",
 				"source=ERROR", "requestId=" + denied.headers().firstValue("X-Request-ID").orElseThrow())
 				.doesNotContain("arena-demo", csrf.group(1));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"POST, /login, 403", "POST, /logout, 403", "GET, /connect/logout, 400"})
+	void authHtmlErrorsKeepStatusAndDiagnosticsWithoutLeakingDetails(String method, String path, int status)
+			throws Exception {
+		var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path + "?error=" + SECRET))
+				.header("Accept", "text/html")
+				.method(method, HttpRequest.BodyPublishers.noBody()).build();
+		var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+		assertThat(response.statusCode()).isEqualTo(status);
+		assertThat(response.body()).contains("Request unsuccessful", "role=\"alert\"", "href=\"/auth.css\"")
+				.doesNotContain(SECRET, "Whitelabel", "Exception", "invalid_request");
+		String id = response.headers().firstValue("X-Request-ID").orElseThrow();
+		assertThat(logs.list).hasSize(1);
+		assertThat(logs.list.getFirst().getFormattedMessage()).contains("path=" + path + " ",
+				"status=" + status, "requestId=" + id).doesNotContain(SECRET);
 	}
 
 	@Test
