@@ -1,0 +1,118 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      # Testcontainers uses the runner's Docker daemon for disposable PostgreSQL.
+      - name: Verify
+        run: ./mvnw -B verify
+
+  web:
+    name: Web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      - name: Unit tests
+        run: npm test
+      - name: Typecheck E2E tests
+        run: npm run test:e2e:types
+      - name: Production build
+        run: npm run build
+
+  mobile:
+    name: Flutter / Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            mobile/android/**/*.gradle.kts
+            mobile/android/gradle.properties
+            mobile/android/gradle/wrapper/gradle-wrapper.properties
+            mobile/pubspec.lock
+      # flutter-version-file expects pubspec/FVM configuration, not a plain pin.
+      - name: Read Flutter version
+        id: flutter-version
+        run: |
+          read -r version < .flutter-version
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
+          channel: stable
+          cache: true
+      - name: Select Android JDK and install dependencies
+        run: |
+          flutter config --jdk-dir "$JAVA_HOME"
+          flutter pub get --enforce-lockfile
+      - name: Check handwritten formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Strict application analysis
+        run: flutter analyze --no-pub --fatal-infos --fatal-warnings
+      - name: Application tests
+        run: flutter test --no-pub
+      - name: Verify generated API client
+        working-directory: mobile/packages/arena_api
+        run: |
+          dart pub get --enforce-lockfile
+          dart analyze --no-fatal-warnings
+          dart analyze test/contract_test.dart
+          dart test test/contract_test.dart --reporter expanded
+      - name: Android debug build
+        run: flutter build apk --debug --no-pub

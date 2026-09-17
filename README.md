@@ -47,6 +47,26 @@ these ports. Open the web app using `localhost`, matching the registered origin.
 For custom hostnames, configure `WEB_ORIGIN`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL`
 and `AUTH_ISSUER_URI` with the externally reachable URLs.
 
+## Continuous integration
+
+[Validate](.github/workflows/validate.yml) runs on pushes to `main` and pull requests,
+with three parallel jobs on standard Ubuntu runners:
+
+- **Backend:** Java 21 and `./mvnw -B verify`, including PostgreSQL integration
+  tests through Testcontainers and the runner's Docker daemon.
+- **Web:** Node from `web/.nvmrc`, `npm ci`, formatting, unit tests, E2E TypeScript
+  checking and the production build (including API client generation).
+- **Flutter / Android:** Flutter from `mobile/.flutter-version`, JDK 21,
+  lockfile-enforced dependencies, handwritten formatting, strict app analysis,
+  app tests, separate generated-client analysis/contract tests and a debug APK build.
+  The generated Dart sources are already committed.
+
+Maven, npm, Flutter/pub and Gradle caches speed up repeat runs. New pushes cancel
+superseded runs for the same branch or PR. Jobs have 15-minute limits for backend
+and web, and 30 minutes for Flutter. The workflow has read-only repository
+permissions and requires no configured secrets. Browser E2E and iOS checks remain
+manual; CI does not deploy or upload build artifacts.
+
 ## Architecture decisions
 
 - **Scope:** Events are the primary CRUD entity in both admin clients. Bookings
