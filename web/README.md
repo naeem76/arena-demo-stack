@@ -132,6 +132,57 @@ draft recovery, create/update coordination, booking cancellation and all-user
 query scope, paged navigation, last-page recovery and bounded event selection.
 Tests mock the API/auth provider and do not require a live backend.
 
+### Real-stack Playwright E2E
+
+Prerequisites: Node 24.x, the real Spring backend and PostgreSQL, and Chromium.
+From the repository root, launch the stack (omit port overrides for defaults):
+
+```sh
+BACKEND_PORT=18080 POSTGRES_PORT=15432 docker compose up --build --wait
+```
+
+From `web/`:
+
+```sh
+npm ci
+npx playwright install chromium
+# On a Linux host missing browser libraries: npx playwright install --with-deps chromium
+export E2E_ADMIN_USERNAME=admin
+read -rs -p 'Admin password: ' E2E_ADMIN_PASSWORD; export E2E_ADMIN_PASSWORD
+E2E_BASE_URL=http://localhost:4200 npm run test:e2e
+npm run test:e2e:types
+```
+
+Use the local admin password documented in the root README, or supply credentials
+through your CI secret environment. Credentials are required, never saved by the
+suite. An explicit `E2E_BASE_URL` tests an already-running stack, including in CI.
+Without it, Playwright starts `npm start` on port 4200 (or reuses it outside CI).
+For that mode, set `API_BASE_URL=http://localhost:18080` when appropriate; the
+backend and database must already be running. The configured browser origin must
+match the backend's OAuth callbacks/CORS. API setup discovers `/config.json`.
+
+Five Chromium tests cover fresh same-tab PKCE login, Event create/detail/edit/delete
+(including cancelled deletion), sport/status filters, previous/next and restored
+list context, invalid/corrected forms, real 409 error feedback, and logout/direct
+route protection. The 409 test cancels its own event via API while its editor is
+open, then submits the actual UI. All asserted interactions use the application;
+fixture creation/cleanup uses authenticated real APIs. No API mocking or SQL is used.
+
+Each test gets a fresh browser context and login. Fixtures use UUID sport/title
+names; teardown runs even after test failures, queries only that sport, deletes
+only exact registered titles, and verifies no records remain. Booking records are
+never created because cancellation preserves history. Existing events are not
+modified. A killed process or unavailable backend can prevent cleanup; a failed
+cleanup identifies its unique sport/IDs for targeted recovery, never bulk deletion.
+
+Run again with `npm run test:e2e -- --repeat-each=2` to check repeatability.
+Tests use one worker by default, bounded waits and no automatic retries. E2E files
+use `.e2e.ts` outside `src/` and a separate TypeScript config, so Angular/Vitest
+does not discover them. Traces, screenshots and videos are disabled to avoid
+recording login credentials/tokens; reports, results, auth state and local E2E
+environment files are ignored. Do not enable trace recording with real credentials.
+Formatting: `npx prettier --check playwright.config.ts 'e2e/**/*.ts' e2e/tsconfig.json`.
+
 For a manual CRUD walkthrough, create a future event, edit it, filter and inspect
 it, then delete it with confirmation. Use another event for booking history:
 reserve via a participant API client, inspect and cancel from the web app, and

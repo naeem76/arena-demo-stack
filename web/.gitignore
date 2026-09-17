@@ -44,3 +44,9 @@ __screenshots__/
 Thumbs.db
 # Runtime configuration is generated for local development or container startup.
 /public/config.json
+
+# Local E2E outputs and credentials
+/test-results/
+/playwright-report/
+/playwright/.auth/
+/.env.e2e*

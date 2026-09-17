@@ -47,6 +47,36 @@ these ports. Open the web app using `localhost`, matching the registered origin.
 For custom hostnames, configure `WEB_ORIGIN`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL`
 and `AUTH_ISSUER_URI` with the externally reachable URLs.
 
+## Architecture decisions
+
+- **Scope:** Events are the primary CRUD entity in both admin clients. Bookings
+  add capacity, ownership and cancellation workflows while preserving history.
+- **Backend structure:** One Spring Boot application separates HTTP, transactional
+  services, domain rules and persistence. Separate API DTOs protect the contract;
+  JPA-backed domain entities avoid duplicate models.
+- **Persistence:** PostgreSQL constraints and shared event-row locking protect
+  integrity and capacity. Flyway manages schema changes; Hibernate validates them.
+  Booking history prevents event deletion.
+- **API contracts:** Both clients generate transport code from one committed
+  OpenAPI snapshot. Forms, state and application behavior remain handwritten.
+- **Authentication:** Spring OAuth/OIDC with PKCE serves browser and native
+  clients. The server enforces roles and ownership. Accounts persist;
+  authorization state and signing keys reset on restart.
+- **Client state and recovery:** Authentication is shared; feature state stays
+  local. Identity-scoped drafts preserve edits, expiry requires sign-in, and
+  mutations are never automatically replayed.
+- **Data loading:** Server-side filtering and bounded pagination avoid
+  whole-collection downloads. Angular preserves list context in URLs; Flutter
+  refreshes on view activation and supports Load more.
+- **Local deployment:** Compose runs the stack. Optional mDNS discovery simplifies
+  physical-device access, with explicit endpoint configuration available.
+- **Errors and testing:** Centralized errors mask internals; request IDs support
+  diagnostics. Injectable dependencies enable focused client tests, while backend
+  integration tests use real PostgreSQL through Testcontainers.
+
+See the [backend](backend/README.md), [Angular](web/README.md) and
+[Flutter](mobile/README.md) documentation for details and trade-offs.
+
 ## Local API discovery
 
 The backend's published port binds to `0.0.0.0` so devices on the local network
