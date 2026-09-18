@@ -82,7 +82,7 @@ hostname lookup when making API requests.
 
 Exactly one distinct candidate URL at the deadline is selected. No results,
 malformed/foreign advertisements, multiple candidates, permission denial, plugin
-failure, or startup timeout fall back to `http://localhost:8080`. Multiple
+failure, or startup timeout fall back to `http://localhost:18080`. Multiple
 candidates are reported rather than arbitrarily selected. Account shows the URL,
 source (`configured`, `mdns`, or `fallback`) and selection reason. Discovery
 listeners detach on completion/disposal and native stop is attempted without
@@ -108,7 +108,7 @@ nor persists refresh tokens, passwords or client secrets.
 Public metadata is fetched at the selected origin's
 `/.well-known/openid-configuration` through a separate Dio without session headers.
 The canonical metadata issuer is preserved. The backend defaults to
-`http://localhost:8080`; Compose derives the port from `BACKEND_PORT` unless
+`http://localhost:18080`; Compose derives the port from `BACKEND_PORT` unless
 `AUTH_ISSUER_URI` overrides it.
 For **debug local HTTP only**, AppAuth receives explicit service endpoints on the
 selected origin: `/oauth2/authorize`, `/oauth2/token`, `/connect/logout`, with

@@ -91,7 +91,7 @@ Do not hand-edit generated files.
 
 ```sh
 # Export the live backend specification, then regenerate.
-API_BASE_URL=http://localhost:8080 npm run update:api
+npm run update:api
 
 # Regenerate from the saved snapshot; backend not required.
 npm run generate:api
@@ -106,7 +106,7 @@ Generated types are compile-time contracts, not runtime response validators.
 ## Runtime configuration and Docker
 
 The browser loads `/config.json` before bootstrap. Local `npm start`/build scripts
-generate it using `API_BASE_URL` (default `http://localhost:8080`) and
+generate it using `API_BASE_URL` (default `http://localhost:18080`) and
 `AUTH_ISSUER_URL` (defaults to the API base URL). The file is ignored by Git.
 
 The Docker build uses the local contract snapshot. An unprivileged Nginx container
@@ -135,10 +135,10 @@ Tests mock the API/auth provider and do not require a live backend.
 ### Real-stack Playwright E2E
 
 Prerequisites: Node 24.x, the real Spring backend and PostgreSQL, and Chromium.
-From the repository root, launch the stack (omit port overrides for defaults):
+From the repository root, launch the stack:
 
 ```sh
-BACKEND_PORT=18080 POSTGRES_PORT=15432 docker compose up --build --wait
+docker compose up --build --wait
 ```
 
 From `web/`:
@@ -149,15 +149,15 @@ npx playwright install chromium
 # On a Linux host missing browser libraries: npx playwright install --with-deps chromium
 export E2E_ADMIN_USERNAME=admin
 read -rs -p 'Admin password: ' E2E_ADMIN_PASSWORD; export E2E_ADMIN_PASSWORD
-E2E_BASE_URL=http://localhost:4200 npm run test:e2e
+E2E_BASE_URL=http://localhost:4299 npm run test:e2e
 npm run test:e2e:types
 ```
 
 Use the local admin password documented in the root README, or supply credentials
 through your CI secret environment. Credentials are required, never saved by the
 suite. An explicit `E2E_BASE_URL` tests an already-running stack, including in CI.
-Without it, Playwright starts `npm start` on port 4200 (or reuses it outside CI).
-For that mode, set `API_BASE_URL=http://localhost:18080` when appropriate; the
+Without it, Playwright starts `npm start` on port 4299 (or reuses it outside CI).
+For a custom backend port, set e.g. `API_BASE_URL=http://localhost:18081`; the
 backend and database must already be running. The configured browser origin must
 match the backend's OAuth callbacks/CORS. API setup discovers `/config.json`.
 

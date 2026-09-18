@@ -60,8 +60,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-		"app.security.issuer=http://localhost:8080",
-		"app.security.web-origin=http://localhost:4200",
+		"app.security.issuer=http://localhost:18080",
+		"app.security.web-origin=http://localhost:4299",
 		"app.security.demo-username=demo",
 		"app.security.demo-password=arena-demo"
 })
@@ -70,9 +70,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(PostgresTestConfiguration.class)
 class SecurityIntegrationTests {
 
-	private static final String ISSUER = "http://localhost:8080";
+	private static final String ISSUER = "http://localhost:18080";
 	private static final String REDIRECT_URI = ISSUER + "/scalar";
-	private static final String WEB_ORIGIN = "http://localhost:4200";
+	private static final String WEB_ORIGIN = "http://localhost:4299";
 	private static final String VERIFIER = "a".repeat(64);
 
 	@Autowired
@@ -149,11 +149,11 @@ class SecurityIntegrationTests {
 	@Test
 	void browserPreflightDoesNotRequireBearerToken() throws Exception {
 		mvc.perform(options("/api/diagnostics/validation")
-				.header(HttpHeaders.ORIGIN, "http://localhost:4200")
+				.header(HttpHeaders.ORIGIN, "http://localhost:4299")
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type"))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"));
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4299"));
 	}
 
 	@Test
@@ -379,9 +379,9 @@ class SecurityIntegrationTests {
 	@Test
 	void publishesOidcDiscoveryForBrowserClients() throws Exception {
 		mvc.perform(get("/.well-known/openid-configuration")
-				.header(HttpHeaders.ORIGIN, "http://localhost:4200"))
+				.header(HttpHeaders.ORIGIN, "http://localhost:4299"))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4299"))
 				.andExpect(jsonPath("$.issuer").value(ISSUER))
 				.andExpect(jsonPath("$.authorization_endpoint").value(ISSUER + "/oauth2/authorize"))
 				.andExpect(jsonPath("$.token_endpoint").value(ISSUER + "/oauth2/token"))
@@ -394,11 +394,11 @@ class SecurityIntegrationTests {
 			"/oauth2/jwks", "/oauth2/token", "/userinfo"})
 	void protocolCorsAllowsConfiguredOriginAndRejectsOtherOrigins(String path) throws Exception {
 		String method = path.equals("/oauth2/token") ? "POST" : "GET";
-		mvc.perform(options(path).header(HttpHeaders.ORIGIN, "http://localhost:4200")
+		mvc.perform(options(path).header(HttpHeaders.ORIGIN, "http://localhost:4299")
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method)
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Content-Type"))
 				.andExpect(status().isOk())
-				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"));
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4299"));
 		mvc.perform(options(path).header(HttpHeaders.ORIGIN, "https://untrusted.example")
 				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, method))
 				.andExpect(status().isForbidden())
@@ -406,8 +406,8 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"scalar,openid api.access,http://localhost:8080/scalar", "scalar,openid profile api.access,http://localhost:8080/scalar",
-			"arena-web,openid profile api.access,http://localhost:4200/auth/callback",
+	@CsvSource({"scalar,openid api.access,http://localhost:18080/scalar", "scalar,openid profile api.access,http://localhost:18080/scalar",
+			"arena-web,openid profile api.access,http://localhost:4299/auth/callback",
 			"arena-mobile,openid profile api.access,com.arena.mobile:/oauth/callback"})
 	void oidcIssuesIdentityAndScopeAppropriateUserInfo(String clientId, String scopes, String redirectUri) throws Exception {
 		JsonNode tokens = objectMapper.readTree(exchange(
@@ -522,10 +522,10 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"arena-web,http://localhost:4200/unregistered",
+	@CsvSource({"arena-web,http://localhost:4299/unregistered",
 			"arena-mobile,com.arena.mobile:/oauth/callback/",
 			"arena-mobile,com.arena.mobile://oauth/callback",
-			"arena-mobile,http://localhost:4200/auth/callback"})
+			"arena-mobile,http://localhost:4299/auth/callback"})
 	void publicClientRejectsUnregisteredAuthorizationRedirect(String clientId, String redirectUri) throws Exception {
 		mvc.perform(get("/oauth2/authorize").session(login())
 				.queryParam("client_id", clientId).queryParam("response_type", "code")
@@ -536,7 +536,7 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"arena-web,http://localhost:4200/auth/callback,''", "arena-web,http://localhost:4200/auth/callback,plain",
+	@CsvSource({"arena-web,http://localhost:4299/auth/callback,''", "arena-web,http://localhost:4299/auth/callback,plain",
 			"arena-mobile,com.arena.mobile:/oauth/callback,''", "arena-mobile,com.arena.mobile:/oauth/callback,plain"})
 	void publicClientRequiresS256Challenge(String clientId, String redirectUri, String method) throws Exception {
 		var request = get("/oauth2/authorize").session(login())
@@ -554,7 +554,7 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"arena-web,http://localhost:4200/auth/callback,''", "arena-web,http://localhost:4200/auth/callback,incorrect-verifier",
+	@CsvSource({"arena-web,http://localhost:4299/auth/callback,''", "arena-web,http://localhost:4299/auth/callback,incorrect-verifier",
 			"arena-mobile,com.arena.mobile:/oauth/callback,''", "arena-mobile,com.arena.mobile:/oauth/callback,incorrect-verifier"})
 	void publicClientRejectsMissingOrWrongVerifier(String clientId, String redirectUri, String verifier) throws Exception {
 		String code = authorize("openid profile api.access", login(), clientId, redirectUri);
@@ -562,7 +562,7 @@ class SecurityIntegrationTests {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"arena-web,http://localhost:4200/auth/callback,http://localhost:4200/signed-out",
+	@CsvSource({"arena-web,http://localhost:4299/auth/callback,http://localhost:4299/signed-out",
 			"arena-mobile,com.arena.mobile:/oauth/callback,com.arena.mobile:/signed-out"})
 	void rpLogoutValidatesRedirectAndInvalidatesLoginSession(String clientId, String redirectUri, String logoutUri) throws Exception {
 		MockHttpSession session = login();

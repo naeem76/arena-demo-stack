@@ -59,7 +59,7 @@ container ERROR dispatches. `RequestLoggingFilterTests` covers exception redacti
 ID reuse, MDC cleanup, original error attributes, bounds, and duplicate suppression.
 Both capture Logback events to validate correlation and secret-sentinel exclusion.
 
-Live checks against `http://localhost:8080` (inspect `X-Request-ID` in the response
+Live checks against `http://localhost:18080` (inspect `X-Request-ID` in the response
 and match it to the backend log):
 
 | Request | Expected result |
@@ -350,7 +350,7 @@ password/client-credentials grants are not configured.
 `arena-web` is the Angular client, with registered scopes `openid`, `profile`, and
 `api.access`. Its callback is `${app.security.web-origin}/auth/callback` and its
 registered post-logout redirect is `${app.security.web-origin}/signed-out`.
-`WEB_ORIGIN` sets this property and defaults to `http://localhost:4200`; configure
+`WEB_ORIGIN` sets this property and defaults to `http://localhost:4299`; configure
 `CORS_ALLOWED_ORIGINS` to allow that origin when changing it. Scalar's callback
 remains `${app.security.issuer}/scalar`.
 
@@ -429,13 +429,13 @@ configured backend address and supplies reachable endpoint aliases through AppAu
 `serviceConfiguration`. Flutter decides the debug transport configuration. These
 LAN URLs are connection endpoints, not additional issuer identities:
 `AUTH_ISSUER_URI` stays fixed at the configured localhost issuer (default
-`http://localhost:8080`), including discovery metadata and token `iss` claims.
+`http://localhost:18080`), including discovery metadata and token `iss` claims.
 The backend retains single-issuer validation; its issuer and Angular registration
 do not change to match the phone's discovered LAN address.
 
 ### Local configuration and lifecycle
 
-`AUTH_ISSUER_URI` defaults to `http://localhost:8080`. Compose derives it from
+`AUTH_ISSUER_URI` defaults to `http://localhost:18080`. Compose derives it from
 `BACKEND_PORT` unless explicitly overridden. Open Scalar using that exact origin;
 `localhost` and `127.0.0.1` are different OAuth redirect origins. The registered
 callback is `${AUTH_ISSUER_URI}/scalar`.
@@ -491,12 +491,12 @@ retain Spring Authorization Server's standard OAuth error payloads (such as
 The shared security-filter CORS policy applies to `/api/**`, the OAuth/OIDC
 metadata documents, `/oauth2/jwks`, `/oauth2/token`, and `/userinfo`. This includes
 the protocol endpoints browser clients use for discovery and code exchange.
-By default it permits the Angular development origin `http://localhost:4200`.
+By default it permits the Angular development origin `http://localhost:4299`.
 Set `CORS_ALLOWED_ORIGINS` to a comma-separated
 list of exact browser origins to override it, for example:
 
 ```sh
-CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:4300 docker compose up --wait
+CORS_ALLOWED_ORIGINS=http://localhost:4299,http://localhost:4300 docker compose up --wait
 ```
 
 Run Compose commands from the repository root. Allowed methods are GET, POST,
@@ -528,12 +528,12 @@ For command-line testing, set `ACCESS_TOKEN` to a token obtained through Scalar.
 Examples, using the default backend port:
 
 ```sh
-curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/api/diagnostics/errors/404
-curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/api/diagnostics/errors/409
-curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/api/diagnostics/errors/503
-curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8080/api/diagnostics/errors/unexpected
+curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18080/api/diagnostics/errors/404
+curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18080/api/diagnostics/errors/409
+curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18080/api/diagnostics/errors/503
+curl -i -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:18080/api/diagnostics/errors/unexpected
 
-curl -i http://localhost:8080/api/diagnostics/validation \
+curl -i http://localhost:18080/api/diagnostics/validation \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"sample","quantity":0}'

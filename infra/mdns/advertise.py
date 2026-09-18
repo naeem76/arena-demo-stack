@@ -39,7 +39,7 @@ def default_address() -> str:
 
 def configuration(env: Mapping[str, str]) -> tuple[str, int]:
     try:
-        port = int(env.get("BACKEND_PORT", "8080"))
+        port = int(env.get("BACKEND_PORT", "18080"))
         if not 1 <= port <= 65535:
             raise ValueError
     except ValueError as exc:

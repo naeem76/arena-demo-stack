@@ -10,7 +10,7 @@ class ApiEndpoint {
   const ApiEndpoint(this.url, this.source, this.detail);
 
   const ApiEndpoint.fallback(String reason)
-    : this('http://localhost:8080', EndpointSource.fallback, reason);
+    : this('http://localhost:18080', EndpointSource.fallback, reason);
 
   final String url;
   final EndpointSource source;

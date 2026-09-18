@@ -19,14 +19,14 @@ From the repository root:
 docker compose up --build --wait
 ```
 
-- Angular admin workspace: <http://localhost:4200>
-- Backend health: <http://localhost:8080/actuator/health>
-- Interactive API reference (Scalar): <http://localhost:8080/scalar>
-- OpenAPI document: <http://localhost:8080/v3/api-docs>
-- OpenID Connect discovery: <http://localhost:8080/.well-known/openid-configuration>
+- Angular admin workspace: <http://localhost:4299>
+- Backend health: <http://localhost:18080/actuator/health>
+- Interactive API reference (Scalar): <http://localhost:18080/scalar>
+- OpenAPI document: <http://localhost:18080/v3/api-docs>
+- OpenID Connect discovery: <http://localhost:18080/.well-known/openid-configuration>
 - Local admin sign-in: `admin` / `arena-admin` (Angular workspace and Scalar)
 - Local user sign-in: `demo` / `arena-demo` (API personal bookings; no admin workspace access)
-- PostgreSQL: `localhost:5432`, database `arena`
+- PostgreSQL: `localhost:15432`, database `arena`
 - Local development database credentials: `arena` / `arena_local`
 
 The health endpoint returns `{"status":"UP"}` when the application and its
@@ -36,10 +36,12 @@ The bundled credentials are for local development only.
 Stop the services with `docker compose down`. To also delete local database
 data, use `docker compose down --volumes`.
 
+The default host ports are not guaranteed to be free. Container-internal ports remain
+`8080` for the backend and Nginx, and `5432` for PostgreSQL.
 If the default ports are occupied, set `WEB_PORT`, `BACKEND_PORT` and/or `POSTGRES_PORT`:
 
 ```sh
-WEB_PORT=4201 BACKEND_PORT=8081 POSTGRES_PORT=5433 docker compose up --build --wait
+WEB_PORT=4298 BACKEND_PORT=18081 POSTGRES_PORT=15433 docker compose up --build --wait
 ```
 
 Compose derives browser API/issuer URLs and the registered Angular callback from
@@ -129,11 +131,11 @@ npm start
 ```
 
 The backend must be running for sign-in and live data. If the Compose web service
-already occupies port 4200, stop it with `docker compose stop web` from the root.
+already occupies port 4299, stop it with `docker compose stop web` from the root.
 For a backend on a different port:
 
 ```sh
-API_BASE_URL=http://localhost:18080 npm start
+API_BASE_URL=http://localhost:18081 npm start
 ```
 
 Build and run frontend tests from `web/`:
@@ -147,7 +149,7 @@ Builds regenerate the typed API client from the shared OpenAPI snapshot, so
 they do not require a running backend. To refresh the snapshot and regenerate:
 
 ```sh
-API_BASE_URL=http://localhost:8080 npm run update:api
+npm run update:api
 ```
 
 See [web application](web/README.md) for structure, authentication, runtime

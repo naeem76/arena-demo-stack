@@ -9,7 +9,7 @@ conflicting addresses for a shared hostname.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `BACKEND_PORT` | `8080` | Backend's published host port; also used by Compose's backend port mapping. |
+| `BACKEND_PORT` | `18080` | Backend's published host port; also used by Compose's backend port mapping. |
 | `MDNS_ADDRESS` | automatic | Optional IPv4 assigned to the host LAN interface. |
 
 Automatic selection uses the lowest-metric active IPv4 default route in

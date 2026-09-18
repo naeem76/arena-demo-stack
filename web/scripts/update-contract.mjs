@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 
-const baseUrl = process.env['API_BASE_URL'] ?? 'http://localhost:8080';
+const baseUrl = process.env['API_BASE_URL'] ?? 'http://localhost:18080';
 const response = await fetch(new URL('/v3/api-docs', baseUrl));
 if (!response.ok) throw new Error(`OpenAPI export failed: HTTP ${response.status}`);
 const specification = await response.json();

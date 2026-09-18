@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = DiagnosticsController.class, properties =
-		"app.cors.allowed-origins=http://localhost:4200,http://client.example")
+		"app.cors.allowed-origins=http://localhost:4299,http://client.example")
 @Import({ApiExceptionHandler.class, WebConfiguration.class, SecurityConfiguration.class, SecurityProblemHandler.class})
 @ActiveProfiles("diagnostics")
 @WithMockUser(authorities = {"SCOPE_api.access", "ROLE_USER"})
@@ -146,7 +146,7 @@ class ApiFoundationWebTests {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"http://localhost:4200", "http://client.example"})
+	@ValueSource(strings = {"http://localhost:4299", "http://client.example"})
 	void acceptsPreflightFromConfiguredOrigins(String origin) throws Exception {
 		mvc.perform(options("/api/diagnostics/validation")
 				.header(HttpHeaders.ORIGIN, origin)
@@ -170,9 +170,9 @@ class ApiFoundationWebTests {
 	@Test
 	void includesCorsHeadersOnErrorResponses() throws Exception {
 		mvc.perform(get("/api/diagnostics/errors/404")
-				.header(HttpHeaders.ORIGIN, "http://localhost:4200"))
+				.header(HttpHeaders.ORIGIN, "http://localhost:4299"))
 				.andExpect(status().isNotFound())
-				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4299"))
 				.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "Location"));
 	}
 }

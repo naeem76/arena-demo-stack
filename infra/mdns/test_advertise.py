@@ -13,7 +13,7 @@ import advertise
 class ConfigurationTests(unittest.TestCase):
     def test_defaults_and_override(self):
         with patch.object(advertise, "default_address", return_value="192.168.1.20") as auto:
-            self.assertEqual(advertise.configuration({}), ("192.168.1.20", 8080))
+            self.assertEqual(advertise.configuration({}), ("192.168.1.20", 18080))
             self.assertEqual(
                 advertise.configuration({"MDNS_ADDRESS": "10.0.0.4", "BACKEND_PORT": "9000"}),
                 ("10.0.0.4", 9000),
